@@ -16,6 +16,10 @@ export type TranslationKey =
   | "userHangup" | "assistantHangup" | "callOutcomes" | "conversations" | "recentTranscripts"
   | "playRecording" | "pauseRecording" | "stopRecording" | "saving" | "errorFetchingData" | "errorUpdatingQA"
   | "deleteSelected" | "usersDeleted" | "errorDeletingUsers" | "confirmDeleteDescription" | "confirmBulkDeleteDescription"
+  | "update" | "assistant" | "addPhoneNumber" | "editPhoneNumber" | "phoneNumberManagement"
+  | "phoneNumberCreated" | "phoneNumberUpdated" | "phoneNumberDeleted" | "errorManagingPhoneNumber"
+  | "addPhoneNumberDescription" | "editPhoneNumberDescription" | "confirmDeletePhoneNumber"
+  | "errorDeletingPhoneNumber"
   
   // Dashboard & Stats
   | "dashboard" | "totalCalls" | "incomingCalls" | "openTickets" | "unassignedTickets"
@@ -45,7 +49,7 @@ export type TranslationKey =
   | "assistantUpdated" | "assistantUpdatedDescription" | "assistantDeleted" | "assistantDeletedDescription"
   | "errorCreatingAssistant" | "errorUpdatingAssistant" | "errorDeletingAssistant"
   | "model" | "systemPrompt" | "voiceId" | "initialMessage"
-  | "assistant.noVoiceSelected" | "assistant.noInitialMessage"
+  | "assistantNoVoiceSelected" | "assistantNoInitialMessage"
   
   // Hotel Questions
   | "propertyName" | "location" | "hotelQuestions" | "breakfastService" | "lunchService"
@@ -64,7 +68,98 @@ export type TranslationKey =
   | "preferences" | "account" | "help" | "documentation" | "support"
   | "quickActions" | "recentItems" | "favorites" | "pressKeyToSearch"
   | "loginDescription"
-  | "selectAssistantAccess";
+  | "selectAssistantAccess"
+  | "date" | "averageDuration" | "exportCSV" | "phoneNumberId" | "assistantId" | "userId"
+  | "createdAt" | "updatedAt" | "defaultAssistant" | "totalCost" | "sttCost" | "llmCost"
+  | "ttsCost" | "vapiCost" | "ticketId"
+  | "welcome"
+  | "logout"
+  | "settings"
+  | "tickets"
+  | "users"
+  | "assistants"
+  | "phoneNumbers"
+  | "status"
+  | "created"
+  | "duration"
+  | "cost"
+  | "search"
+  | "allStatus"
+  | "transcript"
+  | "noTranscriptsAvailable"
+  | "clientDetails"
+  | "summary"
+  | "playRecording"
+  | "pauseRecording"
+  | "error"
+  | "success"
+  | "saving"
+  | "continue"
+  | "cancel"
+  | "delete"
+  | "edit"
+  | "add"
+  | "save"
+  | "name"
+  | "email"
+  | "role"
+  | "language"
+  | "createdAt"
+  | "updatedAt"
+  | "actions"
+  | "confirmDelete"
+  | "deleteConfirmation"
+  | "errorDeletingUser"
+  | "userDeletedSuccess"
+  | "errorUpdatingUser"
+  | "userUpdatedSuccess"
+  | "errorCreatingUser"
+  | "userCreatedSuccess"
+  | "addNewUser"
+  | "editUser"
+  | "deleteUser"
+  | "errorFetchingData"
+  | "errorPlayingRecording"
+  | "addNewAssistant"
+  | "editAssistant"
+  | "deleteAssistant"
+  | "assistantDeletedSuccess"
+  | "assistantUpdatedSuccess"
+  | "assistantCreatedSuccess"
+  | "errorDeletingAssistant"
+  | "errorUpdatingAssistant"
+  | "errorCreatingAssistant"
+  | "addNewPhoneNumber"
+  | "editPhoneNumber"
+  | "deletePhoneNumber"
+  | "phoneNumberDeletedSuccess"
+  | "phoneNumberUpdatedSuccess"
+  | "phoneNumberCreatedSuccess"
+  | "errorDeletingPhoneNumber"
+  | "errorUpdatingPhoneNumber"
+  | "errorCreatingPhoneNumber"
+  | "welcomeEditor"
+  | "beforeWeContinue"
+  | "editorQADescription"
+  | "qaUpdateSuccess"
+  | "errorUpdatingQA"
+  | "exportCSV"
+  | "questionKey"
+  | "englishValue"
+  | "hebrewValue"
+  | "errorUpdatingLanguage"
+  | "date"
+  | "averageDuration"
+  | "phoneNumberId"
+  | "assistantId"
+  | "userId"
+  | "defaultAssistant"
+  | "totalCost"
+  | "sttCost"
+  | "llmCost"
+  | "ttsCost"
+  | "vapiCost"
+  | "ticketId";
 
 export const translations = {
   en: {
@@ -207,10 +302,8 @@ export const translations = {
     systemPrompt: "System Prompt",
     voiceId: "Voice ID",
     initialMessage: "Initial Message",
-    assistant: {
-      noVoiceSelected: "No voice selected",
-      noInitialMessage: "No initial message"
-    },
+    assistantNoVoiceSelected: "No voice selected",
+    assistantNoInitialMessage: "No initial message",
     
     // Hotel Questions
     propertyName: "Hotel/Property Name",
@@ -268,7 +361,55 @@ export const translations = {
     selectAssistantAccess: "Select Assistant Access",
     welcomeEditor: "Welcome to the Editor Panel",
     editorQADescription: "Please fill out the following information about your hotel. This will help us provide better service to your guests. For time fields, please use the format: from HH:MM till HH:MM (e.g., from 09:00 till 13:00)",
-    timeFormat: "Time format: from HH:MM till HH:MM"
+    timeFormat: "Time format: from HH:MM till HH:MM",
+
+    // Phone Number Management
+    addPhoneNumber: "Add Phone Number",
+    editPhoneNumber: "Edit Phone Number",
+    phoneNumberCreated: "Phone number created successfully",
+    phoneNumberUpdated: "Phone number updated successfully",
+    phoneNumberDeleted: "Phone number deleted successfully",
+    errorManagingPhoneNumber: "Error managing phone number",
+    addPhoneNumberDescription: "Add a new phone number and assign it to an assistant",
+    editPhoneNumberDescription: "Update phone number details and assignment",
+    confirmDeletePhoneNumber: "Are you sure you want to delete this phone number?",
+    errorDeletingPhoneNumber: "Error deleting phone number",
+    update: "Update",
+
+    // CSV Export
+    exportCSV: "Export CSV",
+    phoneNumberId: "Phone Number ID",
+    assistantId: "Assistant ID",
+    userId: "User ID",
+    createdAt: "Created At",
+    updatedAt: "Updated At",
+    defaultAssistant: "Default Assistant",
+    totalCost: "Total Cost",
+    sttCost: "STT Cost",
+    llmCost: "LLM Cost",
+    ttsCost: "TTS Cost",
+    vapiCost: "VAPI Cost",
+    ticketId: "Ticket ID",
+    averageDuration: "Average Duration",
+    date: "Date",
+
+    // New translations
+    questionKey: {
+      en: 'Question Key',
+      he: 'מפתח שאלה'
+    },
+    englishValue: {
+      en: 'English Value',
+      he: 'ערך באנגלית'
+    },
+    hebrewValue: {
+      en: 'Hebrew Value',
+      he: 'ערך בעברית'
+    },
+    errorUpdatingLanguage: {
+      en: 'Failed to update language preference',
+      he: 'נכשל בעדכון העדפת השפה'
+    }
   },
   he: {
     // Common
@@ -410,10 +551,8 @@ export const translations = {
     systemPrompt: "הנחיית מערכת",
     voiceId: "מזהה קול",
     initialMessage: "הודעה ראשונית",
-    assistant: {
-      noVoiceSelected: "לא נבחר קול",
-      noInitialMessage: "לא נבחר הודעה ראשונית"
-    },
+    assistantNoVoiceSelected: "לא נבחר קול",
+    assistantNoInitialMessage: "לא נבחר הודעה ראשונית",
     
     // Hotel Questions
     propertyName: "שם המלון/הנכס",
@@ -471,7 +610,55 @@ export const translations = {
     selectAssistantAccess: "בחר גישה לעוזר",
     welcomeEditor: "ברוך הבא לפאנל העורך",
     editorQADescription: "אנא מלא את המידע הבא על המלון שלך. זה יעזור לנו לספק שירות טוב יותר לאורחים שלך. עבור שדות זמן, אנא השתמש בפורמט: מ-HH:MM עד HH:MM (לדוגמה, מ-09:00 עד 13:00)",
-    timeFormat: "פורמט זמן: מ-HH:MM עד HH:MM"
+    timeFormat: "פורמט זמן: מ-HH:MM עד HH:MM",
+
+    // Phone Number Management
+    addPhoneNumber: "הוסף מספר טלפון",
+    editPhoneNumber: "ערוך מספר טלפון",
+    phoneNumberCreated: "מספר טלפון נוצר בהצלחה",
+    phoneNumberUpdated: "מספר טלפון עודכן בהצלחה",
+    phoneNumberDeleted: "מספר טלפון נמחק בהצלחה",
+    errorManagingPhoneNumber: "שגיאה בניהול מספר טלפון",
+    addPhoneNumberDescription: "הוסף מספר טלפון חדש ושייך אותו לעוזר",
+    editPhoneNumberDescription: "עדכן פרטי מספר טלפון ושיוך",
+    confirmDeletePhoneNumber: "האם אתה בטוח שברצונך למחוק מספר טלפון זה?",
+    errorDeletingPhoneNumber: "שגיאה במחיקת מספר טלפון",
+    update: "עדכן",
+
+    // CSV Export
+    exportCSV: "ייצוא ל-CSV",
+    phoneNumberId: "מזהה מספר טלפון",
+    assistantId: "מזהה עוזר",
+    userId: "מזהה משתמש",
+    createdAt: "נוצר ב",
+    updatedAt: "עודכן ב",
+    defaultAssistant: "עוזר ברירת מחדל",
+    totalCost: "עלות כוללת",
+    sttCost: "עלות STT",
+    llmCost: "עלות LLM",
+    ttsCost: "עלות TTS",
+    vapiCost: "עלות VAPI",
+    ticketId: "מזהה כרטיס",
+    averageDuration: "משך ממוצע",
+    date: "תאריך",
+
+    // New translations
+    questionKey: {
+      en: 'Question Key',
+      he: 'מפתח שאלה'
+    },
+    englishValue: {
+      en: 'English Value',
+      he: 'ערך באנגלית'
+    },
+    hebrewValue: {
+      en: 'Hebrew Value',
+      he: 'ערך בעברית'
+    },
+    errorUpdatingLanguage: {
+      en: 'Failed to update language preference',
+      he: 'נכשל בעדכון העדפת השפה'
+    }
   }
 } as const;
 

@@ -34,6 +34,7 @@ import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { useTranslation } from "react-i18next";
 import { useToast } from "@/components/ui/use-toast";
 import { useUser } from "@/contexts/useUser";
+import { convertToCSV, downloadCSV, formatTicketsForCSV } from '@/utils/csvExport';
 
 interface TicketCosts {
     total: number;
@@ -283,6 +284,27 @@ export function TicketList({ tickets, isLoading, assistantId = '672ab50d-5c05-46
         }
     };
 
+    const handleExport = () => {
+        if (!user || (user.role !== 'owner' && user.role !== 'admin')) return;
+
+        const headers = {
+            id: t('ticketId'),
+            status: t('status'),
+            createdAt: t('createdAt'),
+            duration: t('duration'),
+            summary: t('summary'),
+            total_cost: t('totalCost'),
+            stt_cost: t('sttCost'),
+            llm_cost: t('llmCost'),
+            tts_cost: t('ttsCost'),
+            vapi_cost: t('vapiCost')
+        };
+
+        const csvData = formatTicketsForCSV(tickets, user.role === 'admin');
+        const csvContent = convertToCSV(csvData, headers);
+        downloadCSV(csvContent, `tickets-${format(new Date(), 'yyyy-MM-dd')}.csv`);
+    };
+
     // Loading skeleton component
     const LoadingSkeleton = () => (
         <div className="space-y-4">
@@ -364,6 +386,11 @@ export function TicketList({ tickets, isLoading, assistantId = '672ab50d-5c05-46
                                     to: date.to || null
                                 })}
                             />
+                            {(user?.role === 'owner' || user?.role === 'admin') && (
+                                <Button variant="outline" onClick={handleExport} className="h-9 bg-background/50 border-muted">
+                                    {t('exportCSV')}
+                                </Button>
+                            )}
                         </div>
 
                         {/* Audio Player */}

@@ -23,8 +23,6 @@ const timeFields = [
     'businessLounge'
 ] as const;
 
-type TimeField = typeof timeFields[number];
-
 interface MultilingualContent {
     en: string;
     he: string;
@@ -47,6 +45,7 @@ export function QAManagement() {
     const [editMode, setEditMode] = useState(false);
     const [formData, setFormData] = useState<Record<string, MultilingualContent>>({});
     const [customQuestions, setCustomQuestions] = useState<CustomQuestion[]>([]);
+    const isRTL = language === 'he';
 
     // Update user's language preference
     const updateUserLanguage = async (newLanguage: 'en' | 'he') => {
@@ -70,7 +69,7 @@ export function QAManagement() {
             console.error('Error updating language:', error);
             toast({
                 title: t('error'),
-                description: 'Failed to update language preference',
+                description: t('errorUpdatingLanguage'),
                 variant: "destructive"
             });
         }
@@ -109,14 +108,16 @@ export function QAManagement() {
 
             // Extract standard fields with multilingual support
             const standardFields = Object.fromEntries(
-                Object.entries(qaData).filter(([key]) => standardKeys.includes(key as typeof standardKeys[number])).map(([key, value]) => {
-                    // If the value is already multilingual, use it as is
-                    if (value && typeof value === 'object' && 'en' in value && 'he' in value) {
-                        return [key, value as MultilingualContent];
-                    }
-                    // If it's a string, convert it to multilingual format
-                    return [key, { en: value as string, he: value as string }];
-                })
+                Object.entries(qaData)
+                    .filter(([key]) => standardKeys.includes(key as typeof standardKeys[number]))
+                    .map(([key, value]) => {
+                        // If the value is already multilingual, use it as is
+                        if (value && typeof value === 'object' && 'en' in value && 'he' in value) {
+                            return [key, value as MultilingualContent];
+                        }
+                        // If it's a string, convert it to multilingual format
+                        return [key, { en: value as string, he: value as string }];
+                    })
             );
 
             // Extract custom fields with multilingual support
@@ -124,9 +125,9 @@ export function QAManagement() {
                 .filter(([key]) => !standardKeys.includes(key as typeof standardKeys[number]))
                 .map(([key, value]) => ({
                     key,
-                    value: typeof value === 'object' && 'en' in value && 'he' in value
+                    value: typeof value === 'object' && value && 'en' in value && 'he' in value
                         ? value as MultilingualContent
-                        : { en: value as string, he: value as string }
+                        : { en: String(value || ''), he: String(value || '') }
                 }));
 
             setFormData(standardFields);
@@ -151,7 +152,7 @@ export function QAManagement() {
             setEditMode(false);
             toast({
                 title: t('success'),
-                description: t('userUpdatedDescription')
+                description: t('qaUpdateSuccess')
             });
         },
         onError: (error) => {
@@ -193,14 +194,9 @@ export function QAManagement() {
         updateMutation.mutate(combinedData);
     };
 
-    const getTranslation = (key: string): string => {
-        const translation = t[key as keyof typeof t];
-        return typeof translation === 'string' ? translation : key;
-    };
-
-    if (isLoading) return <div>Loading...</div>;
-    if (error) return <div>Error: {(error as QueryError).message}</div>;
-    if (!qaData) return <div>No QA data available</div>;
+    if (isLoading) return <div>{t('loading')}</div>;
+    if (error) return <div>{t('error')}: {(error as QueryError).message}</div>;
+    if (!qaData) return <div>{t('noResults')}</div>;
 
     return (
         <Card>
@@ -246,7 +242,7 @@ export function QAManagement() {
                             {Object.entries(formData).map(([key, value]) => (
                                 <div key={key} className="space-y-1">
                                     <div className="font-medium">
-                                        {getTranslation(key)}
+                                        {t(key as keyof typeof t)}
                                     </div>
                                     <div className="text-sm text-muted-foreground whitespace-pre-wrap">
                                         {value[language] || '-'}

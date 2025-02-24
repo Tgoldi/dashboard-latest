@@ -11,6 +11,8 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Languages } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { convertToCSV, downloadCSV, formatQAForCSV } from '@/utils/csvExport';
+import { format } from 'date-fns';
 
 interface MultilingualContent {
     en: string;
@@ -22,6 +24,28 @@ interface CustomQuestion {
     value: MultilingualContent;
 }
 
+const standardFields = [
+    'propertyName',
+    'location',
+    'breakfastService',
+    'lunchService',
+    'dinnerService',
+    'poolHours',
+    'spaServices',
+    'checkoutProcedures',
+    'ironingFacilities',
+    'iceMachineLocation',
+    'kidsClubServices',
+    'synagogueServices',
+    'gymFacilities',
+    'businessLounge',
+    'accessibilityFeatures',
+    'uniqueAmenities',
+    'contactPerson',
+    'contactEmail',
+    'contactPhone'
+] as const;
+
 const timeInputFields = [
     'breakfastService',
     'lunchService',
@@ -30,7 +54,7 @@ const timeInputFields = [
     'spaServices',
     'gymFacilities',
     'businessLounge'
-];
+] as const;
 
 export function EditorQAForm() {
     const { t, language, setLanguage } = useTheme();
@@ -40,6 +64,7 @@ export function EditorQAForm() {
     const [isLoading, setIsLoading] = useState(false);
     const [formData, setFormData] = useState<Record<string, MultilingualContent>>({});
     const [customQuestions, setCustomQuestions] = useState<CustomQuestion[]>([]);
+    const isRTL = language === 'he';
 
     // Fetch existing QA data
     useEffect(() => {
@@ -63,43 +88,33 @@ export function EditorQAForm() {
 
                 // Set existing QA data if available
                 if (data?.questions) {
-                    const standardKeys = [
-                        'propertyName', 'location', 'breakfastService', 'lunchService',
-                        'dinnerService', 'poolHours', 'spaServices', 'checkoutProcedures',
-                        'ironingFacilities', 'iceMachineLocation', 'kidsClubServices',
-                        'synagogueServices', 'gymFacilities', 'businessLounge',
-                        'accessibilityFeatures', 'uniqueAmenities', 'contactPerson',
-                        'contactEmail', 'contactPhone'
-                    ];
-
                     // Extract standard fields with multilingual support
-                    const standardFields = Object.fromEntries(
-                        Object.entries(data.questions)
-                            .filter(([key]) => standardKeys.includes(key))
-                            .map(([key, value]) => {
-                                const val = value || '';
-                                if (typeof val === 'object' && 'en' in val && 'he' in val) {
-                                    return [key, val as MultilingualContent];
-                                }
-                                return [key, { en: String(val), he: String(val) }];
-                            })
+                    const standardFieldData = Object.fromEntries(
+                        standardFields.map(field => {
+                            const rawValue = data.questions?.[field];
+                            // Check if the value is a valid multilingual content object
+                            if (rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue) &&
+                                'en' in rawValue && 'he' in rawValue &&
+                                typeof rawValue.en === 'string' && typeof rawValue.he === 'string') {
+                                return [field, rawValue as MultilingualContent];
+                            }
+                            // Default to empty strings for both languages
+                            return [field, { en: '', he: '' }];
+                        })
                     );
 
                     // Extract custom fields with multilingual support
-                    const customFields = Object.entries(data.questions)
-                        .filter(([key]) => !standardKeys.includes(key))
-                        .map(([key, value]) => {
-                            const val = value || '';
-                            return {
-                                key,
-                                value: typeof val === 'object' && 'en' in val && 'he' in val
-                                    ? val as MultilingualContent
-                                    : { en: String(val), he: String(val) }
-                            };
-                        });
+                    const customFieldData = Object.entries(data.questions)
+                        .filter(([key]) => !standardFields.includes(key as typeof standardFields[number]))
+                        .map(([key, value]) => ({
+                            key,
+                            value: value && typeof value === 'object' && 'en' in value && 'he' in value
+                                ? value as MultilingualContent
+                                : { en: String(value ?? ''), he: String(value ?? '') }
+                        }));
 
-                    setFormData(standardFields);
-                    setCustomQuestions(customFields);
+                    setFormData(standardFieldData);
+                    setCustomQuestions(customFieldData);
                 }
             } catch (error) {
                 console.error('Error fetching QA data:', error);
@@ -159,6 +174,18 @@ export function EditorQAForm() {
         }
     };
 
+    const handleExport = () => {
+        const headers = {
+            key: t('questionKey'),
+            english_value: t('englishValue'),
+            hebrew_value: t('hebrewValue')
+        };
+
+        const csvData = formatQAForCSV(formData, customQuestions);
+        const csvContent = convertToCSV(csvData, headers);
+        downloadCSV(csvContent, `qa-form-${format(new Date(), 'yyyy-MM-dd')}.csv`);
+    };
+
     // Update user's language preference
     const updateUserLanguage = async (newLanguage: 'en' | 'he') => {
         try {
@@ -178,7 +205,7 @@ export function EditorQAForm() {
             console.error('Error updating language:', error);
             toast({
                 title: t('error'),
-                description: 'Failed to update language preference',
+                description: t('errorUpdatingLanguage'),
                 variant: "destructive"
             });
         }
@@ -187,7 +214,13 @@ export function EditorQAForm() {
     return (
         <div className="max-w-4xl mx-auto space-y-6">
             {/* Language Switcher */}
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+                <Button
+                    variant="outline"
+                    onClick={handleExport}
+                >
+                    {t('exportCSV')}
+                </Button>
                 <Button
                     variant="outline"
                     size="lg"
@@ -226,7 +259,7 @@ export function EditorQAForm() {
                             setFormData={setFormData}
                             customQuestions={customQuestions}
                             setCustomQuestions={setCustomQuestions}
-                            timeInputFields={timeInputFields}
+                            timeInputFields={Array.from(timeInputFields)}
                             currentLanguage={language}
                             submitButton={
                                 <Button

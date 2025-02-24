@@ -249,7 +249,7 @@ export function AssistantManagement() {
                                             </div>
                                             <div className="flex items-center justify-between text-sm">
                                                 <span className="text-muted-foreground">{t('voiceId')}</span>
-                                                <span>{assistant.settings?.voice_id || t('assistant.noVoiceSelected')}</span>
+                                                <span>{assistant.settings?.voice_id || t('assistantNoVoiceSelected')}</span>
                                             </div>
                                         </div>
                                     </div>

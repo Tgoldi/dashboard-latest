@@ -55,7 +55,8 @@ export function TimeSelector({ value, onChange, placeholder = "Select time" }: T
                 type="time"
                 value={from}
                 onChange={(e) => handleFromChange(e.target.value)}
-                className="w-[140px]"
+                className="w-[140px] text-right"
+                dir="ltr"
             />
             <span className="text-sm text-muted-foreground">
                 {isRTL ? "עד" : "till"}
@@ -64,7 +65,8 @@ export function TimeSelector({ value, onChange, placeholder = "Select time" }: T
                 type="time"
                 value={to}
                 onChange={(e) => handleToChange(e.target.value)}
-                className="w-[140px]"
+                className="w-[140px] text-right"
+                dir="ltr"
             />
         </div>
     );

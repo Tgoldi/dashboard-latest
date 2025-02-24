@@ -25,6 +25,8 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import type { User } from "@/types/user";
 import { AddUserDialog } from "./AddUserDialog";
 import { useUser } from "@/contexts/UserContext";
+import { convertToCSV, downloadCSV, formatUsersForCSV } from '@/utils/csvExport';
+import { format } from 'date-fns';
 
 export function UserManagement() {
     const { t } = useTheme();
@@ -200,6 +202,75 @@ export function UserManagement() {
         }
     };
 
+    const handleExport = () => {
+        if (!user || (user.role !== 'owner' && user.role !== 'admin')) return;
+        if (!users) return;
+
+        const standardQAFields = [
+            'propertyName',
+            'location',
+            'breakfastService',
+            'lunchService',
+            'dinnerService',
+            'poolHours',
+            'spaServices',
+            'checkoutProcedures',
+            'ironingFacilities',
+            'iceMachineLocation',
+            'kidsClubServices',
+            'synagogueServices',
+            'gymFacilities',
+            'businessLounge',
+            'accessibilityFeatures',
+            'uniqueAmenities',
+            'contactPerson',
+            'contactEmail',
+            'contactPhone'
+        ] as const;
+
+        // Base headers
+        const headers: Record<string, string> = {
+            id: t('userId'),
+            email: t('email'),
+            name: t('name'),
+            role: t('role'),
+            assistant_access: t('assistantAccess'),
+            language: t('language'),
+            assigned_assistants: t('assignedAssistants'),
+            default_assistant: t('defaultAssistant'),
+            qa_form_submitted: 'QA Form Submitted',
+            created_at: t('createdAt'),
+            updated_at: t('updatedAt'),
+            created_by: 'Created By'
+        };
+
+        // Add QA headers
+        standardQAFields.forEach(field => {
+            headers[`qa_${field}_en`] = `${t(field as keyof typeof t)} (English)`;
+            headers[`qa_${field}_he`] = `${t(field as keyof typeof t)} (Hebrew)`;
+        });
+
+        // Add custom QA headers if they exist
+        const customFields = new Set<string>();
+        users.forEach(user => {
+            const userData = user as User;
+            if (userData.questions) {
+                Object.keys(userData.questions)
+                    .filter(key => !standardQAFields.includes(key as typeof standardQAFields[number]))
+                    .forEach(key => customFields.add(key));
+            }
+        });
+
+        customFields.forEach(field => {
+            headers[`qa_custom_${field}_en`] = `Custom: ${field} (English)`;
+            headers[`qa_custom_${field}_he`] = `Custom: ${field} (Hebrew)`;
+        });
+
+        const csvData = formatUsersForCSV(users);
+        const csvContent = convertToCSV(csvData, headers);
+        downloadCSV(csvContent, `users-${format(new Date(), 'yyyy-MM-dd')}.csv`);
+    };
+
     if (loading) {
         return (
             <div className="p-6">
@@ -261,6 +332,11 @@ export function UserManagement() {
                         >
                             <Plus className="mr-2 h-4 w-4" />
                             {t('createUser')}
+                        </Button>
+                    )}
+                    {(user?.role === 'owner' || user?.role === 'admin') && (
+                        <Button onClick={handleExport} variant="outline">
+                            {t('exportCSV')}
                         </Button>
                     )}
                 </div>

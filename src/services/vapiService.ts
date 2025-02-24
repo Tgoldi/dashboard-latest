@@ -3,6 +3,7 @@ import { AssistantSettings } from '../lib/supabase';
 import { supabase } from '../lib/supabase-browser';
 
 const API_BASE_URL = 'http://localhost:3001/api';
+const VAPI_BASE_URL = 'https://api.vapi.ai';
 
 declare global {
   interface Window {
@@ -83,6 +84,15 @@ interface RawTranscript {
   recordingUrl?: string;
 }
 
+// Add interface for phone number data
+export interface PhoneNumber {
+  id: string;
+  number: string;
+  assistantId: string;
+  status: string;
+  createdAt: string;
+}
+
 // Add interface for user data
 interface UserAssistantData {
     assigned_assistants: string[];
@@ -106,17 +116,36 @@ interface RawAssistant {
   };
 }
 
+interface VapiPhoneNumberRequest {
+    number: string;
+    assistant_id: string;
+    provider: 'twilio';  // Only allow Twilio
+}
+
+interface VapiPhoneNumberResponse {
+    id: string;
+    number: string;
+    assistant_id: string;
+    status: string;
+    created_at: string;
+    provider: string;
+}
+
 class VapiService {
   private baseUrl: string;
+  private vapiUrl: string;
   private headers: Headers;
   private isDevelopment: boolean;
+  private apiKey: string;
 
   constructor() {
     this.baseUrl = API_BASE_URL;
+    this.vapiUrl = VAPI_BASE_URL;
     this.headers = new Headers({
       'Content-Type': 'application/json'
     });
     this.isDevelopment = process.env.NODE_ENV === 'development';
+    this.apiKey = import.meta.env.VITE_VAPI_PRIVATE_KEY;
   }
 
   private async getAuthHeaders(): Promise<Headers> {
@@ -408,45 +437,156 @@ class VapiService {
     }
   }
 
-  async getPhoneNumbers() {
-    const response = await fetch(`${this.baseUrl}/phone-number`, {
-      headers: await this.getAuthHeaders()
-    });
-    return response.json();
+  async getPhoneNumbers(): Promise<PhoneNumber[]> {
+    try {
+      const response = await fetch(`${this.vapiUrl}/phone-number`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error response:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText
+        });
+        throw new Error(`Failed to fetch phone numbers: ${errorText}`);
+      }
+
+      const data = await response.json();
+      // Ensure data is an array
+      const phoneNumbers = Array.isArray(data) ? data : [data];
+      return phoneNumbers.map((item: VapiPhoneNumberResponse) => ({
+        id: item.id,
+        number: item.number,
+        assistantId: item.assistant_id,
+        status: item.status,
+        createdAt: item.created_at
+      }));
+    } catch (error) {
+      console.error('Error fetching phone numbers:', error);
+      if (this.isDevelopment) {
+        console.warn('Using mock data for phone numbers');
+        return [{
+          id: '1',
+          number: '+1234567890',
+          assistantId: MOCK_ASSISTANT.id,
+          status: 'active',
+          createdAt: new Date().toISOString()
+        }];
+      }
+      throw new Error('Error fetching phone numbers: ' + (error instanceof Error ? error.message : String(error)));
+    }
   }
 
-  async createPhoneNumber(number: string) {
-    const response = await fetch(`${this.baseUrl}/phone-number`, {
-      method: 'POST',
-      headers: await this.getAuthHeaders(),
-      body: JSON.stringify({ number })
-    });
-    return response.json();
+  async createPhoneNumber(number: string, assistantId: string): Promise<PhoneNumber> {
+    try {
+        const requestData: VapiPhoneNumberRequest = {
+            number,
+            assistant_id: assistantId,
+            provider: 'twilio'  // Always use Twilio
+        };
+
+        console.log('Creating phone number with data:', requestData);
+
+        const response = await fetch(`${this.vapiUrl}/phone-number`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.apiKey}`
+            },
+            body: JSON.stringify(requestData)
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Error response:', {
+                status: response.status,
+                statusText: response.statusText,
+                body: errorText
+            });
+            throw new Error(`Failed to create phone number: ${errorText}`);
+        }
+
+        const data: VapiPhoneNumberResponse = await response.json();
+        return {
+            id: data.id,
+            number: data.number,
+            assistantId: data.assistant_id,
+            status: data.status,
+            createdAt: data.created_at
+        };
+    } catch (error) {
+        console.error('Error creating phone number:', error);
+        throw new Error('Error creating phone number: ' + (error instanceof Error ? error.message : String(error)));
+    }
   }
 
-  async updatePhoneNumber(id: string, number: string) {
-    const response = await fetch(`${this.baseUrl}/phone-number/${id}`, {
-      method: 'PATCH',
-      headers: await this.getAuthHeaders(),
-      body: JSON.stringify({ number })
-    });
-    return response.json();
+  async updatePhoneNumber(id: string, number: string, assistantId?: string): Promise<PhoneNumber> {
+    try {
+      const updateData: Partial<VapiPhoneNumberRequest> = {};
+      if (number) updateData.number = number;
+      if (assistantId) updateData.assistant_id = assistantId;
+
+      const response = await fetch(`${this.vapiUrl}/phone-number/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`
+        },
+        body: JSON.stringify(updateData)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error response:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText
+        });
+        throw new Error(`Failed to update phone number: ${errorText}`);
+      }
+
+      const data: VapiPhoneNumberResponse = await response.json();
+      return {
+        id: data.id,
+        number: data.number,
+        assistantId: data.assistant_id,
+        status: data.status,
+        createdAt: data.created_at
+      };
+    } catch (error) {
+      console.error('Error updating phone number:', error);
+      throw new Error('Error updating phone number: ' + (error instanceof Error ? error.message : String(error)));
+    }
   }
 
-  async assignPhoneNumberToUser(phoneNumberId: string, userId: string) {
-    const response = await fetch(`${this.baseUrl}/phone-number/${phoneNumberId}/assign`, {
-      method: 'POST',
-      headers: await this.getAuthHeaders(),
-      body: JSON.stringify({ userId })
-    });
-    return response.json();
-  }
+  async deletePhoneNumber(id: string): Promise<void> {
+    try {
+      const response = await fetch(`${this.vapiUrl}/phone-number/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`
+        }
+      });
 
-  async getPhoneNumbersByUser(userId: string) {
-    const response = await fetch(`${this.baseUrl}/users/${userId}/phone-numbers`, {
-      headers: await this.getAuthHeaders()
-    });
-    return response.json();
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error response:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText
+        });
+        throw new Error(`Failed to delete phone number: ${errorText}`);
+      }
+    } catch (error) {
+      console.error('Error deleting phone number:', error);
+      throw new Error('Error deleting phone number: ' + (error instanceof Error ? error.message : String(error)));
+    }
   }
 
   async getCallDetails(callId: string) {

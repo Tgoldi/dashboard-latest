@@ -190,7 +190,7 @@ export function QAForm({
                         <div key={field} className="space-y-2">
                             <div className="flex justify-between items-center">
                                 <label className="text-sm font-medium">
-                                    {t(field as keyof typeof t) || field}
+                                    {t(field as keyof typeof t)}
                                 </label>
                                 <Button
                                     variant="ghost"
