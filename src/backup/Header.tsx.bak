@@ -1,0 +1,88 @@
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { useTheme } from "@/contexts/ThemeContext";
+import { useUser } from "@/contexts/UserContext";
+import { useEffect, useState } from "react";
+import { Sun, Moon, Languages, LogOut } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+
+export function Header() {
+    const { t, isDark, toggleTheme, language, setLanguage } = useTheme();
+    const { user, logout } = useUser();
+    const [assistantName, setAssistantName] = useState<string | undefined>();
+    const navigate = useNavigate();
+
+    useEffect(() => {
+        console.log('Header useEffect - User changed:', user);
+        console.log('Assistant Details:', user?.defaultAssistantDetails);
+        if (user?.defaultAssistantDetails?.name) {
+            console.log('Setting assistant name to:', user.defaultAssistantDetails.name);
+            setAssistantName(user.defaultAssistantDetails.name);
+        }
+    }, [user?.defaultAssistantDetails?.name]);
+
+    // Force debug render
+    const debugInfo = {
+        hasUser: !!user,
+        userRole: user?.role,
+        assistantName: assistantName,
+        defaultAssistantDetails: user?.defaultAssistantDetails
+    };
+    console.log('Debug Info:', debugInfo);
+
+    return (
+        <header className="border-b bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/50 dark:to-purple-950/50">
+            <div className="container mx-auto py-4">
+                <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-4">
+                        <Link to="/" className="text-2xl font-semibold tracking-tight bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                            {t('dashboard')}
+                        </Link>
+                        {user?.role !== 'admin' && user?.defaultAssistantDetails?.name && (
+                            <div className="text-sm font-normal text-gray-600 dark:text-gray-400" dir="rtl" lang="he">
+                                - {user.defaultAssistantDetails.name}
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex gap-2">
+                        {user?.role === 'admin' && (
+                            <Button
+                                variant="outline"
+                                onClick={() => navigate('/admin')}
+                                className="h-9 px-3 flex items-center gap-2"
+                            >
+                                <span>{t('adminPanel')}</span>
+                            </Button>
+                        )}
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={toggleTheme}
+                            className="h-9 w-9"
+                            title={isDark ? t('lightMode') : t('darkMode')}
+                        >
+                            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => setLanguage(language === 'en' ? 'he' : 'en')}
+                            className="h-9 w-9"
+                            title={t('language')}
+                        >
+                            <Languages className="h-4 w-4" />
+                        </Button>
+                        <Button
+                            variant="outline"
+                            onClick={logout}
+                            className="h-9 px-3 flex items-center gap-2"
+                        >
+                            <LogOut className="h-4 w-4" />
+                            <span>{t('logout')}</span>
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        </header>
+    );
+} 
