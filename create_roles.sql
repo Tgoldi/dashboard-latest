@@ -206,10 +206,13 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
   INSERT INTO public.users (id, email, role)
-  VALUES (NEW.id, NEW.email, NEW.raw_user_meta_data->>'role'::user_role);
+  VALUES (NEW.id, NEW.email, 'user'::public.user_role);
+  -- Role is hard-coded to 'user'; any role changes must go through a
+  -- separate, admin-only process using the service key with explicit
+  -- authorization checks. Signup metadata is never trusted for role.
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
 
 -- Create trigger to handle new user signups
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;

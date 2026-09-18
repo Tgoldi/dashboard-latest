@@ -22,6 +22,8 @@ if (missingVars.length > 0) {
 
 import express, { Request, Response } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { VapiClient } from '@vapi-ai/server-sdk';
@@ -39,13 +41,18 @@ import {
 } from '../types/vapi';
 import { createClient } from '@supabase/supabase-js';
 
+if (process.env.NODE_ENV !== 'development' && !process.env.FRONTEND_URL) {
+    console.error('FRONTEND_URL environment variable must be set in production');
+    process.exit(1);
+}
+
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
     cors: {
         origin: process.env.NODE_ENV === 'development'
             ? 'http://localhost:8080'
-            : 'your_production_url',
+            : process.env.FRONTEND_URL,
         methods: ['GET', 'POST'],
         credentials: true
     }
@@ -57,14 +64,17 @@ const vapi = new VapiClient({
 });
 
 // Middleware
+app.use(helmet());
 app.use(cors({
     origin: process.env.NODE_ENV === 'development'
         ? ['http://localhost:8080']
-        : 'your_production_url',
+        : process.env.FRONTEND_URL,
     credentials: true,
     methods: ['GET', 'POST', 'OPTIONS']
 }));
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
+
+app.use('/api/', rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 
 // Routes
 app.use('/api/auth', authRouter);
@@ -722,8 +732,7 @@ app.get('/api/calls/:callId/recording', authenticateToken, checkAdminAccess, asy
     } catch (error) {
         console.error('Error fetching call recording:', error);
         res.status(500).json({
-            error: 'Failed to fetch call recording',
-            details: error instanceof Error ? error.message : 'Unknown error'
+            error: 'Something went wrong'
         });
     }
 });

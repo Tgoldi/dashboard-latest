@@ -50,16 +50,17 @@ DROP POLICY IF EXISTS "manage_assistants_policy" ON public.assistants;
 CREATE OR REPLACE FUNCTION get_auth_user_role()
 RETURNS user_role AS $$
 BEGIN
-    RETURN (SELECT role FROM users WHERE id = auth.uid());
+    RETURN (SELECT role FROM public.users WHERE id = auth.uid());
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
 
--- Service role policy (has full access)
+-- Service role policy (has full access) - service role bypasses RLS by default,
+-- so this policy relies only on the database role, not a client-supplied JWT claim.
 CREATE POLICY "service_role_policy"
     ON public.assistants
     FOR ALL
-    USING (auth.jwt() ->> 'role' = 'service_role')
-    WITH CHECK (auth.jwt() ->> 'role' = 'service_role');
+    USING (auth.role() = 'service_role')
+    WITH CHECK (auth.role() = 'service_role');
 
 -- Policy for viewing assistants
 CREATE POLICY "view_assistants_policy"
@@ -68,7 +69,7 @@ CREATE POLICY "view_assistants_policy"
     USING (
         CASE
             -- Service role and owners can see all assistants
-            WHEN auth.jwt() ->> 'role' = 'service_role' OR
+            WHEN auth.role() = 'service_role' OR
                  EXISTS (
                      SELECT 1 FROM users
                      WHERE users.id = auth.uid()
@@ -107,7 +108,7 @@ CREATE POLICY "manage_assistants_policy"
     USING (
         CASE
             -- Service role and owners can manage all assistants
-            WHEN auth.jwt() ->> 'role' = 'service_role' OR
+            WHEN auth.role() = 'service_role' OR
                  EXISTS (
                      SELECT 1 FROM users
                      WHERE users.id = auth.uid()
@@ -133,7 +134,7 @@ CREATE POLICY "manage_assistants_policy"
     WITH CHECK (
         CASE
             -- Service role and owners can manage all assistants
-            WHEN auth.jwt() ->> 'role' = 'service_role' OR
+            WHEN auth.role() = 'service_role' OR
                  EXISTS (
                      SELECT 1 FROM users
                      WHERE users.id = auth.uid()

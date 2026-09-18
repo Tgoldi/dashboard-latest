@@ -114,31 +114,38 @@ class VapiService {
                 // Fetch assistants from VAPI
                 const assistants = await this.assistants.list();
                 console.log('Fetched assistants from VAPI:', assistants.length);
-                
-                // For each assistant, upsert into Supabase
-                for (const assistant of assistants) {
-                    console.log(`Syncing assistant: ${assistant.name} (${assistant.id})`);
-                    const { error } = await supabaseAdmin
-                        .from('assistants')
-                        .upsert({
-                            id: assistant.id,
-                            name: assistant.name,
-                            description: assistant.description,
-                            language: assistant.language,
-                            model: assistant.model,
-                            settings: assistant.settings,
-                            org_id: assistant.org_id,
-                            created_at: assistant.created_at,
-                            updated_at: new Date().toISOString()
-                        }, {
-                            onConflict: 'id'
-                        });
 
-                    if (error) {
-                        console.error(`Error syncing assistant ${assistant.id}:`, error);
-                    } else {
-                        console.log(`Successfully synced assistant: ${assistant.name}`);
-                    }
+                const MAX_ASSISTANTS_PER_SYNC = 500;
+                if (assistants.length > MAX_ASSISTANTS_PER_SYNC) {
+                    throw new Error(
+                        `Refusing to sync ${assistants.length} assistants in a single run; ` +
+                        `exceeds limit of ${MAX_ASSISTANTS_PER_SYNC}. Aborting sync.`
+                    );
+                }
+
+                // Upsert all assistants in a single batched request instead of one at a time
+                const rows = assistants.map(assistant => ({
+                    id: assistant.id,
+                    name: assistant.name,
+                    description: assistant.description,
+                    language: assistant.language,
+                    model: assistant.model,
+                    settings: assistant.settings,
+                    org_id: assistant.org_id,
+                    created_at: assistant.created_at,
+                    updated_at: new Date().toISOString()
+                }));
+
+                const { error } = await supabaseAdmin
+                    .from('assistants')
+                    .upsert(rows, {
+                        onConflict: 'id'
+                    });
+
+                if (error) {
+                    console.error('Error syncing assistants batch:', error);
+                } else {
+                    console.log(`Successfully synced ${rows.length} assistants`);
                 }
             } catch (error) {
                 console.error('Error syncing assistants:', error);

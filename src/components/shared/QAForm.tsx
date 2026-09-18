@@ -85,16 +85,27 @@ export function QAForm({
     ];
 
     const handleInputChange = (field: string, value: string) => {
-        setFormData({
-            ...formData,
-            [field]: {
-                ...formData[field],
-                [currentLanguage]: value
+        if (['__proto__', 'constructor', 'prototype'].includes(field)) {
+            return;
+        }
+        const safeFormData: Record<string, MultilingualContent> = Object.create(null);
+        for (const key of Object.keys(formData)) {
+            if (['__proto__', 'constructor', 'prototype'].includes(key)) {
+                continue;
             }
-        });
+            safeFormData[key] = formData[key];
+        }
+        safeFormData[field] = {
+            ...safeFormData[field],
+            [currentLanguage]: value
+        };
+        setFormData(safeFormData);
     };
 
     const handleCustomQuestionChange = (index: number, key: string, value: string) => {
+        if (['__proto__', 'constructor', 'prototype'].includes(key)) {
+            return;
+        }
         const newQuestions = [...customQuestions];
         if (!newQuestions[index]) {
             newQuestions[index] = { key, value: { en: '', he: '' } };
