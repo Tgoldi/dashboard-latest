@@ -22,7 +22,8 @@ export const SUPABASE_ANON_KEY = getEnvVar('SUPABASE_ANON_KEY') || getEnvVar('VI
 export const SUPABASE_SERVICE_KEY = getEnvVar('SUPABASE_SERVICE_KEY') || getEnvVar('VITE_SUPABASE_SERVICE_KEY');
 
 // VAPI configuration
-export const VAPI_PRIVATE_KEY = getEnvVar('VAPI_PRIVATE_KEY') || getEnvVar('VITE_VAPI_PRIVATE_KEY');
+// server only — no public prefix:
+export const VAPI_PRIVATE_KEY = process.env.VAPI_PRIVATE_KEY || '';
 
 // Other configuration
 export const API_URL = getEnvVar('API_URL') || getEnvVar('VITE_API_URL');

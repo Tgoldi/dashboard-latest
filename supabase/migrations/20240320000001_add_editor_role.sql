@@ -44,7 +44,16 @@ CREATE POLICY "Allow admins and editors full access to phone numbers"
     ON public.phone_numbers
     FOR ALL
     TO authenticated
-    USING (auth.jwt() ->> 'role' IN ('admin', 'editor', 'owner'));
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.users u
+            WHERE u.id = auth.uid()
+              AND u.role IN ('admin', 'editor', 'owner')
+              AND (u.role = 'owner' OR u.role = 'admin' OR phone_numbers.user_id = u.id OR phone_numbers.user_id IN (
+                  SELECT id FROM public.users WHERE created_by = auth.uid()
+              ))
+        )
+    );
 
 -- Enable RLS on users table
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
@@ -67,11 +76,10 @@ CREATE POLICY "Admins and owners have full access"
     FOR ALL
     USING (
         CASE
-            WHEN auth.jwt() ->> 'role' = 'owner' THEN true
-            WHEN auth.jwt() ->> 'role' = 'admin' THEN
+            WHEN (SELECT u.role FROM public.users u WHERE u.id = auth.uid()) = 'owner' THEN true
+            WHEN (SELECT u.role FROM public.users u WHERE u.id = auth.uid()) = 'admin' THEN
                 -- Admins can manage users they created and can only create editors and users
                 (created_by = auth.uid() AND role IN ('editor', 'user'))
-                OR id = auth.uid()
             ELSE false
         END
     );
@@ -80,4 +88,4 @@ CREATE POLICY "Admins and owners have full access"
 CREATE POLICY "Service role can manage all users"
     ON public.users
     FOR ALL
-    USING (auth.jwt() ->> 'role' = 'service_role'); 
+    USING (auth.role() = 'service_role');

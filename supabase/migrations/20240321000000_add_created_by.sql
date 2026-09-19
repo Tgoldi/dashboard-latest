@@ -18,8 +18,8 @@ DROP POLICY IF EXISTS "delete_users_policy" ON users;
 CREATE POLICY "service_role_policy"
     ON users
     FOR ALL
-    USING (auth.jwt() ->> 'role' = 'service_role')
-    WITH CHECK (auth.jwt() ->> 'role' = 'service_role');
+    USING (pg_has_role(current_user, 'service_role', 'member'))
+    WITH CHECK (pg_has_role(current_user, 'service_role', 'member'));
 
 -- Policy for viewing users (SELECT)
 CREATE POLICY "view_users_policy"
@@ -28,7 +28,7 @@ CREATE POLICY "view_users_policy"
     USING (
         CASE
             -- Service role can see all users
-            WHEN auth.jwt() ->> 'role' = 'service_role' THEN true
+            WHEN pg_has_role(current_user, 'service_role', 'member') THEN true
             -- Users with role 'owner' can see all users
             WHEN users.role = 'owner'::user_role THEN true
             -- Admins can see users they created and their own record
@@ -42,9 +42,9 @@ CREATE POLICY "view_users_policy"
 CREATE OR REPLACE FUNCTION get_auth_user_role()
 RETURNS user_role AS $$
 BEGIN
-    RETURN (SELECT role FROM users WHERE id = auth.uid());
+    RETURN (SELECT role FROM public.users WHERE id = auth.uid());
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
 
 -- Policy for inserting users (INSERT)
 CREATE POLICY "insert_users_policy"
@@ -53,7 +53,7 @@ CREATE POLICY "insert_users_policy"
     WITH CHECK (
         CASE
             -- Service role can create any user
-            WHEN auth.jwt() ->> 'role' = 'service_role' THEN true
+            WHEN pg_has_role(current_user, 'service_role', 'member') THEN true
             -- Users with role 'owner' can create any user
             WHEN get_auth_user_role() = 'owner'::user_role THEN true
             -- Admins can only create editor and user roles
@@ -70,7 +70,7 @@ CREATE POLICY "update_users_policy"
     USING (
         CASE
             -- Service role can update any user
-            WHEN auth.jwt() ->> 'role' = 'service_role' THEN true
+            WHEN pg_has_role(current_user, 'service_role', 'member') THEN true
             -- Users with role 'owner' can update any user
             WHEN get_auth_user_role() = 'owner'::user_role THEN true
             -- Admins can update users they created and their own record
@@ -82,7 +82,7 @@ CREATE POLICY "update_users_policy"
     WITH CHECK (
         CASE
             -- Service role can do anything
-            WHEN auth.jwt() ->> 'role' = 'service_role' THEN true
+            WHEN pg_has_role(current_user, 'service_role', 'member') THEN true
             -- Users with role 'owner' can do anything
             WHEN get_auth_user_role() = 'owner'::user_role THEN true
             -- Admins can update their own record or manage editor/user roles
@@ -101,7 +101,7 @@ CREATE POLICY "delete_users_policy"
     USING (
         CASE
             -- Service role can delete any user
-            WHEN auth.jwt() ->> 'role' = 'service_role' THEN true
+            WHEN pg_has_role(current_user, 'service_role', 'member') THEN true
             -- Users with role 'owner' can delete any user
             WHEN get_auth_user_role() = 'owner'::user_role THEN true
             -- Admins can only delete users they created

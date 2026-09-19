@@ -7,8 +7,17 @@ import { VapiClient } from '@vapi-ai/server-sdk';
 import { VapiAssistant, asVapiAssistant } from '../../types/vapi';
 import { VAPI_PRIVATE_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY } from '../../lib/env';
 import { UserRole } from '../../types/user';
+import rateLimit from 'express-rate-limit';
 
 const router = Router();
+
+const authRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    keyGenerator: (req) => `${req.ip}:${req.body?.email ?? ''}`,
+    standardHeaders: true,
+    legacyHeaders: false,
+});
 
 // Initialize VAPI client
 const vapi = new VapiClient({
@@ -73,7 +82,7 @@ interface UserResponse {
 const signUpHandler: express.RequestHandler<Record<string, never>, AuthResponse, SignUpBody> = async (req, res) => {
     try {
         const { email, password, name, questions } = req.body;
-        console.log('Signup request received:', { email, name });
+        console.log('Signup request received for user:', { name });
 
         // Create auth user with admin client
         const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -191,7 +200,7 @@ const loginHandler: express.RequestHandler<Record<string, never>, AuthResponse, 
             return;
         }
 
-        console.log('Attempting login with:', { email });
+        console.log('Attempting login for user');
         const { data, error } = await supabase.auth.signInWithPassword({
             email,
             password
@@ -293,7 +302,7 @@ const getCurrentUserHandler: express.RequestHandler<object, AuthResponse> = asyn
 router.post('/create-user', async (req, res) => {
     try {
         const { id, email, role, assistantAccess, language } = req.body;
-        console.log('Create user request received:', { id, email, role, assistantAccess, language });
+        console.log('Create user request received:', { id, role, assistantAccess, language });
 
         // Verify the user is authenticated
         const authHeader = req.headers['authorization'];
@@ -321,6 +330,29 @@ router.post('/create-user', async (req, res) => {
 
         console.log('User authenticated:', user.id);
 
+        // Determine if the requester is an admin
+        const { data: requesterData } = await adminClient
+            .from('users')
+            .select('role')
+            .eq('id', user.id)
+            .single();
+
+        const isAdmin = requesterData?.role === 'admin';
+
+        // Non-admins may only create their own account, and only with the 'user' role
+        if (!isAdmin) {
+            if (id !== user.id) {
+                res.status(403).json({ error: 'Forbidden: cannot create account for another user' });
+                return;
+            }
+            if (role && role !== 'user') {
+                res.status(403).json({ error: 'Forbidden: cannot assign elevated role' });
+                return;
+            }
+        }
+
+        const safeRole = isAdmin ? role : 'user';
+
         // First check if user already exists
         const { data: existingUser, error: existingError } = await adminClient
             .from('users')
@@ -342,7 +374,7 @@ router.post('/create-user', async (req, res) => {
             .insert([{
                 id,
                 email,
-                role,
+                role: safeRole,
                 assistant_access: assistantAccess,
                 language,
                 assigned_assistants: []
@@ -451,7 +483,7 @@ router.get('/user', authenticateToken, async (req: AuthenticatedRequest, res: Re
 });
 
 // Routes
-router.post('/login', loginHandler);
+router.post('/login', authRateLimiter, loginHandler);
 router.post('/logout', logoutHandler);
 router.get('/me', getCurrentUserHandler);
 
@@ -521,7 +553,7 @@ const userHandler: express.RequestHandler<Record<string, never>, UserResponse, U
     }
 };
 
-router.post('/user', userHandler);
+router.post('/user', authRateLimiter, userHandler);
 
 // Admin user management endpoints
 router.post('/admin/users', authenticateToken, checkAdminAccess, async (req, res) => {
@@ -685,6 +717,6 @@ router.get('/admin/users', authenticateToken, checkAdminAccess, async (req, res)
     }
 });
 
-router.post('/signup', signUpHandler);
+router.post('/signup', authRateLimiter, signUpHandler);
 
 export default router; 

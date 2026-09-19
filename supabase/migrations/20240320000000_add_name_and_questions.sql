@@ -73,8 +73,8 @@ DROP POLICY IF EXISTS "service_role_policy" ON public.users;
 CREATE POLICY "service_role_policy"
     ON public.users
     FOR ALL
-    USING (auth.jwt() ->> 'role' = 'service_role')
-    WITH CHECK (auth.jwt() ->> 'role' = 'service_role');
+    USING (auth.role() = 'service_role')
+    WITH CHECK (auth.role() = 'service_role');
 
 CREATE POLICY "user_read_policy"
     ON public.users
@@ -95,8 +95,8 @@ CREATE POLICY "admin_all_policy"
             SELECT 1 FROM auth.users
             WHERE auth.uid() = auth.users.id
             AND (
-                raw_user_meta_data->>'role' = 'admin'
-                OR raw_user_meta_data->>'role' = 'owner'
+                raw_app_meta_data->>'role' = 'admin'
+                OR raw_app_meta_data->>'role' = 'owner'
             )
         )
     );
@@ -184,11 +184,15 @@ CREATE OR REPLACE FUNCTION create_new_user(
     user_email text,
     user_name text,
     user_questions jsonb
-) RETURNS users AS $$
+) RETURNS users
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
 DECLARE
-    new_user users;
+    new_user public.users;
 BEGIN
-    INSERT INTO users (
+    INSERT INTO public.users (
         id,
         email,
         name,
@@ -213,4 +217,4 @@ BEGIN
     
     RETURN new_user;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;

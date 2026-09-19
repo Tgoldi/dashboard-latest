@@ -84,7 +84,12 @@ export function QAForm({
         }
     ];
 
+    const UNSAFE_KEYS = ['__proto__', 'constructor', 'prototype'];
+
     const handleInputChange = (field: string, value: string) => {
+        if (UNSAFE_KEYS.includes(field)) {
+            return;
+        }
         setFormData({
             ...formData,
             [field]: {
@@ -95,6 +100,9 @@ export function QAForm({
     };
 
     const handleCustomQuestionChange = (index: number, key: string, value: string) => {
+        if (UNSAFE_KEYS.includes(key)) {
+            return;
+        }
         const newQuestions = [...customQuestions];
         if (!newQuestions[index]) {
             newQuestions[index] = { key, value: { en: '', he: '' } };

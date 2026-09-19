@@ -50,16 +50,16 @@ DROP POLICY IF EXISTS "manage_assistants_policy" ON public.assistants;
 CREATE OR REPLACE FUNCTION get_auth_user_role()
 RETURNS user_role AS $$
 BEGIN
-    RETURN (SELECT role FROM users WHERE id = auth.uid());
+    RETURN (SELECT role FROM public.users WHERE id = auth.uid());
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
 
 -- Service role policy (has full access)
 CREATE POLICY "service_role_policy"
     ON public.assistants
     FOR ALL
-    USING (auth.jwt() ->> 'role' = 'service_role')
-    WITH CHECK (auth.jwt() ->> 'role' = 'service_role');
+    USING (auth.role() = 'service_role')
+    WITH CHECK (auth.role() = 'service_role');
 
 -- Policy for viewing assistants
 CREATE POLICY "view_assistants_policy"
@@ -68,20 +68,20 @@ CREATE POLICY "view_assistants_policy"
     USING (
         CASE
             -- Service role and owners can see all assistants
-            WHEN auth.jwt() ->> 'role' = 'service_role' OR
+            WHEN auth.role() = 'service_role' OR
                  EXISTS (
-                     SELECT 1 FROM users
+                     SELECT 1 FROM public.users
                      WHERE users.id = auth.uid()
                      AND users.role = 'owner'::user_role
                  ) THEN true
             -- Admins can only see assistants assigned to users they created
             WHEN EXISTS (
-                SELECT 1 FROM users
+                SELECT 1 FROM public.users
                 WHERE users.id = auth.uid()
                 AND users.role = 'admin'::user_role
             ) THEN 
                 EXISTS (
-                    SELECT 1 FROM users
+                    SELECT 1 FROM public.users
                     WHERE users.created_by = auth.uid()
                     AND (
                         assistants.id = ANY(users.assigned_assistants)
@@ -90,7 +90,7 @@ CREATE POLICY "view_assistants_policy"
                 )
             -- Regular users and editors can only see their assigned assistants
             ELSE EXISTS (
-                SELECT 1 FROM users
+                SELECT 1 FROM public.users
                 WHERE users.id = auth.uid()
                 AND (
                     assistants.id = ANY(users.assigned_assistants)
@@ -107,20 +107,20 @@ CREATE POLICY "manage_assistants_policy"
     USING (
         CASE
             -- Service role and owners can manage all assistants
-            WHEN auth.jwt() ->> 'role' = 'service_role' OR
+            WHEN auth.role() = 'service_role' OR
                  EXISTS (
-                     SELECT 1 FROM users
+                     SELECT 1 FROM public.users
                      WHERE users.id = auth.uid()
                      AND users.role = 'owner'::user_role
                  ) THEN true
             -- Admins can only manage assistants assigned to users they created
             WHEN EXISTS (
-                SELECT 1 FROM users
+                SELECT 1 FROM public.users
                 WHERE users.id = auth.uid()
                 AND users.role = 'admin'::user_role
             ) THEN 
                 EXISTS (
-                    SELECT 1 FROM users
+                    SELECT 1 FROM public.users
                     WHERE users.created_by = auth.uid()
                     AND (
                         assistants.id = ANY(users.assigned_assistants)
@@ -133,20 +133,20 @@ CREATE POLICY "manage_assistants_policy"
     WITH CHECK (
         CASE
             -- Service role and owners can manage all assistants
-            WHEN auth.jwt() ->> 'role' = 'service_role' OR
+            WHEN auth.role() = 'service_role' OR
                  EXISTS (
-                     SELECT 1 FROM users
+                     SELECT 1 FROM public.users
                      WHERE users.id = auth.uid()
                      AND users.role = 'owner'::user_role
                  ) THEN true
             -- Admins can only manage assistants assigned to users they created
             WHEN EXISTS (
-                SELECT 1 FROM users
+                SELECT 1 FROM public.users
                 WHERE users.id = auth.uid()
                 AND users.role = 'admin'::user_role
             ) THEN 
                 EXISTS (
-                    SELECT 1 FROM users
+                    SELECT 1 FROM public.users
                     WHERE users.created_by = auth.uid()
                     AND (
                         assistants.id = ANY(users.assigned_assistants)
