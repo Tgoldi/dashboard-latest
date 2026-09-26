@@ -145,7 +145,7 @@ class VapiService {
       'Content-Type': 'application/json'
     });
     this.isDevelopment = process.env.NODE_ENV === 'development';
-    this.apiKey = import.meta.env.VITE_VAPI_PRIVATE_KEY;
+    this.apiKey = '';
   }
 
   private async getAuthHeaders(): Promise<Headers> {
@@ -396,37 +396,26 @@ class VapiService {
   async getCallRecording(callId: string): Promise<string> {
     try {
       console.log('Fetching recording for call:', callId);
-      
-      // Get the call details
-      const response = await fetch(`https://api.vapi.ai/call/${callId}`, {
+
+      // Get the recording URL via the backend proxy (keeps the Vapi private key server-side)
+      const response = await fetch(`${this.baseUrl}/calls/${callId}/recording`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_VAPI_PRIVATE_KEY}`
-        }
+        headers: await this.getAuthHeaders()
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('VAPI Error response:', errorData);
-        throw new Error(errorData.error || `Failed to fetch call details: ${response.status}`);
+        console.error('Error response:', errorData);
+        throw new Error(errorData.error || `Failed to fetch call recording: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('Call details response:', JSON.stringify(data, null, 2));
+      console.log('Call recording response:', JSON.stringify(data, null, 2));
 
-      // Check if call is completed
-      if (!data.status || !['ended', 'completed'].includes(data.status)) {
-        throw new Error(data.status === 'in-progress' ? 'Call is still in progress' : 'Call has not started yet');
-      }
-
-      // Look for recordingUrl in the response
-      const recordingUrl = data.recordingUrl || data.recording_url;
+      const recordingUrl = data.url;
 
       if (!recordingUrl) {
-        console.log('No recording URL found. This might be because recording is not enabled in the assistant artifactPlan.');
-        console.log('Full response:', JSON.stringify(data, null, 2));
-        throw new Error('Recording not available. Please ensure recording is enabled in the assistant settings (artifactPlan.recordingEnabled).');
+        throw new Error('Recording not available. Please ensure recording is enabled in the assistant settings.');
       }
 
       console.log('Found recording URL:', recordingUrl);
@@ -439,11 +428,8 @@ class VapiService {
 
   async getPhoneNumbers(): Promise<PhoneNumber[]> {
     try {
-      const response = await fetch(`${this.vapiUrl}/phone-number`, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`
-        }
+      const response = await fetch(`${this.baseUrl}/phone-numbers`, {
+        headers: await this.getAuthHeaders()
       });
 
       if (!response.ok) {
@@ -492,12 +478,9 @@ class VapiService {
 
         console.log('Creating phone number with data:', requestData);
 
-        const response = await fetch(`${this.vapiUrl}/phone-number`, {
+        const response = await fetch(`${this.baseUrl}/phone-numbers`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${this.apiKey}`
-            },
+            headers: await this.getAuthHeaders(),
             body: JSON.stringify(requestData)
         });
 
@@ -531,12 +514,9 @@ class VapiService {
       if (number) updateData.number = number;
       if (assistantId) updateData.assistant_id = assistantId;
 
-      const response = await fetch(`${this.vapiUrl}/phone-number/${id}`, {
+      const response = await fetch(`${this.baseUrl}/phone-numbers/${id}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`
-        },
+        headers: await this.getAuthHeaders(),
         body: JSON.stringify(updateData)
       });
 
@@ -566,12 +546,9 @@ class VapiService {
 
   async deletePhoneNumber(id: string): Promise<void> {
     try {
-      const response = await fetch(`${this.vapiUrl}/phone-number/${id}`, {
+      const response = await fetch(`${this.baseUrl}/phone-numbers/${id}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`
-        }
+        headers: await this.getAuthHeaders()
       });
 
       if (!response.ok) {
@@ -592,12 +569,9 @@ class VapiService {
   async getCallDetails(callId: string) {
     try {
       console.log('Fetching call details for:', callId);
-      const response = await fetch(`https://api.vapi.ai/call/${callId}`, {
+      const response = await fetch(`${this.baseUrl}/calls/${callId}`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_VAPI_PRIVATE_KEY}`
-        }
+        headers: await this.getAuthHeaders()
       });
 
       if (!response.ok) {

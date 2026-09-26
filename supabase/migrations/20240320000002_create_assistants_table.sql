@@ -48,11 +48,11 @@ DROP POLICY IF EXISTS "manage_assistants_policy" ON public.assistants;
 
 -- Get the role of the currently authenticated user
 CREATE OR REPLACE FUNCTION get_auth_user_role()
-RETURNS user_role AS $$
+RETURNS public.user_role AS $$
 BEGIN
-    RETURN (SELECT role FROM users WHERE id = auth.uid());
+    RETURN (SELECT role FROM public.users WHERE id = auth.uid());
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
 
 -- Service role policy (has full access)
 CREATE POLICY "service_role_policy"

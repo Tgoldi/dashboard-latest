@@ -42,9 +42,9 @@ CREATE POLICY "view_users_policy"
 CREATE OR REPLACE FUNCTION get_auth_user_role()
 RETURNS user_role AS $$
 BEGIN
-    RETURN (SELECT role FROM users WHERE id = auth.uid());
+    RETURN (SELECT role FROM public.users WHERE id = auth.uid());
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
 
 -- Policy for inserting users (INSERT)
 CREATE POLICY "insert_users_policy"

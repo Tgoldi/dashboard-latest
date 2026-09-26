@@ -40,11 +40,32 @@ ALTER TABLE public.users
 -- Add RLS policies for phone_numbers
 ALTER TABLE public.phone_numbers ENABLE ROW LEVEL SECURITY;
 
+CREATE OR REPLACE FUNCTION public.current_user_role()
+RETURNS public.user_role
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+    SELECT role FROM public.users WHERE id = auth.uid();
+$$;
+
 CREATE POLICY "Allow admins and editors full access to phone numbers"
     ON public.phone_numbers
     FOR ALL
     TO authenticated
-    USING (auth.jwt() ->> 'role' IN ('admin', 'editor', 'owner'));
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.users AS acting
+            WHERE acting.id = auth.uid()
+            AND acting.role IN ('admin', 'editor', 'owner')
+        )
+        AND EXISTS (
+            SELECT 1 FROM public.users
+            WHERE users.id = phone_numbers.user_id
+            AND users.created_by = auth.uid()
+        )
+    );
 
 -- Enable RLS on users table
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
@@ -59,7 +80,10 @@ CREATE POLICY "Editors can update their own questions"
     ON public.users
     FOR UPDATE
     USING (auth.uid() = id)
-    WITH CHECK (auth.uid() = id AND role = 'editor');
+    WITH CHECK (
+        auth.uid() = id
+        AND role = (SELECT u.role FROM public.users u WHERE u.id = auth.uid())
+    );
 
 -- Allow admins and owners full access
 CREATE POLICY "Admins and owners have full access"
@@ -67,8 +91,14 @@ CREATE POLICY "Admins and owners have full access"
     FOR ALL
     USING (
         CASE
-            WHEN auth.jwt() ->> 'role' = 'owner' THEN true
-            WHEN auth.jwt() ->> 'role' = 'admin' THEN
+            WHEN EXISTS (
+                SELECT 1 FROM public.users acting
+                WHERE acting.id = auth.uid() AND acting.role = 'owner'
+            ) THEN true
+            WHEN EXISTS (
+                SELECT 1 FROM public.users acting
+                WHERE acting.id = auth.uid() AND acting.role = 'admin'
+            ) THEN
                 -- Admins can manage users they created and can only create editors and users
                 (created_by = auth.uid() AND role IN ('editor', 'user'))
                 OR id = auth.uid()
@@ -80,4 +110,5 @@ CREATE POLICY "Admins and owners have full access"
 CREATE POLICY "Service role can manage all users"
     ON public.users
     FOR ALL
-    USING (auth.jwt() ->> 'role' = 'service_role'); 
+    TO service_role
+    USING (true);

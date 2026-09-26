@@ -39,13 +39,29 @@ import {
 } from '../types/vapi';
 import { createClient } from '@supabase/supabase-js';
 
+if (process.env.NODE_ENV !== 'development' && !process.env.FRONTEND_URL) {
+    console.error('Missing required environment variable: FRONTEND_URL must be set in production');
+    process.exit(1);
+}
+
 const app = express();
+
+// Set security-related HTTP headers manually (helmet is not installed in this project)
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '0');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    next();
+});
+
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
     cors: {
         origin: process.env.NODE_ENV === 'development'
             ? 'http://localhost:8080'
-            : 'your_production_url',
+            : process.env.FRONTEND_URL,
         methods: ['GET', 'POST'],
         credentials: true
     }
@@ -60,7 +76,7 @@ const vapi = new VapiClient({
 app.use(cors({
     origin: process.env.NODE_ENV === 'development'
         ? ['http://localhost:8080']
-        : 'your_production_url',
+        : process.env.FRONTEND_URL,
     credentials: true,
     methods: ['GET', 'POST', 'OPTIONS']
 }));
@@ -722,8 +738,7 @@ app.get('/api/calls/:callId/recording', authenticateToken, checkAdminAccess, asy
     } catch (error) {
         console.error('Error fetching call recording:', error);
         res.status(500).json({
-            error: 'Failed to fetch call recording',
-            details: error instanceof Error ? error.message : 'Unknown error'
+            error: 'Something went wrong'
         });
     }
 });

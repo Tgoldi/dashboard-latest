@@ -95,8 +95,8 @@ CREATE POLICY "admin_all_policy"
             SELECT 1 FROM auth.users
             WHERE auth.uid() = auth.users.id
             AND (
-                raw_user_meta_data->>'role' = 'admin'
-                OR raw_user_meta_data->>'role' = 'owner'
+                raw_app_meta_data->>'role' = 'admin'
+                OR raw_app_meta_data->>'role' = 'owner'
             )
         )
     );
@@ -188,7 +188,7 @@ CREATE OR REPLACE FUNCTION create_new_user(
 DECLARE
     new_user users;
 BEGIN
-    INSERT INTO users (
+    INSERT INTO public.users (
         id,
         email,
         name,
@@ -202,7 +202,7 @@ BEGIN
         user_id,
         user_email,
         user_name,
-        'user'::user_role,
+        'user'::public.user_role,
         'single',
         'en',
         '{}',
@@ -213,4 +213,4 @@ BEGIN
     
     RETURN new_user;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
