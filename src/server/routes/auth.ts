@@ -73,7 +73,7 @@ interface UserResponse {
 const signUpHandler: express.RequestHandler<Record<string, never>, AuthResponse, SignUpBody> = async (req, res) => {
     try {
         const { email, password, name, questions } = req.body;
-        console.log('Signup request received:', { email, name });
+        console.log('Signup request received:', { email: 'user@***', name });
 
         // Create auth user with admin client
         const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -191,7 +191,7 @@ const loginHandler: express.RequestHandler<Record<string, never>, AuthResponse, 
             return;
         }
 
-        console.log('Attempting login with:', { email });
+        console.log('Attempting login with masked email');
         const { data, error } = await supabase.auth.signInWithPassword({
             email,
             password
@@ -293,7 +293,7 @@ const getCurrentUserHandler: express.RequestHandler<object, AuthResponse> = asyn
 router.post('/create-user', async (req, res) => {
     try {
         const { id, email, role, assistantAccess, language } = req.body;
-        console.log('Create user request received:', { id, email, role, assistantAccess, language });
+        console.log('Create user request received:', { id, role, assistantAccess, language });
 
         // Verify the user is authenticated
         const authHeader = req.headers['authorization'];
@@ -321,6 +321,30 @@ router.post('/create-user', async (req, res) => {
 
         console.log('User authenticated:', user.id);
 
+        // Only allow admins to create arbitrary users, or non-admins to create their own account with a fixed 'user' role
+        const { data: requestingUserRecord, error: requestingUserError } = await adminClient
+            .from('users')
+            .select('role')
+            .eq('id', user.id)
+            .single();
+
+        const isAdmin = !requestingUserError && requestingUserRecord?.role === 'admin';
+
+        if (!isAdmin) {
+            if (id !== user.id) {
+                console.error('Non-admin user attempted to create a user other than themselves');
+                res.status(403).json({ error: 'Forbidden: cannot create another user account' });
+                return;
+            }
+            if (role && role !== 'user') {
+                console.error('Non-admin user attempted to assign a non-default role');
+                res.status(403).json({ error: 'Forbidden: cannot assign elevated role' });
+                return;
+            }
+        }
+
+        const safeRole = isAdmin ? (role || 'user') : 'user';
+
         // First check if user already exists
         const { data: existingUser, error: existingError } = await adminClient
             .from('users')
@@ -342,7 +366,7 @@ router.post('/create-user', async (req, res) => {
             .insert([{
                 id,
                 email,
-                role,
+                role: safeRole,
                 assistant_access: assistantAccess,
                 language,
                 assigned_assistants: []
@@ -469,7 +493,7 @@ const userHandler: express.RequestHandler<Record<string, never>, UserResponse, U
             return;
         }
 
-        console.log('Found auth user:', user);
+        console.log('Found auth user:', user.id);
 
         // Check if user exists in our users table
         const { data: existingUser, error: fetchError } = await supabaseAdmin
@@ -487,6 +511,7 @@ const userHandler: express.RequestHandler<Record<string, never>, UserResponse, U
         // If user doesn't exist, create a new record
         if (!existingUser) {
             console.log('User not found in database, creating new record for ID:', user.id);
+            // email intentionally omitted from log
             
             const { data: newUser, error: createError } = await supabaseAdmin
                 .from('users')

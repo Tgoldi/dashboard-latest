@@ -21,8 +21,9 @@ export const SUPABASE_URL = getEnvVar('SUPABASE_URL') || getEnvVar('VITE_SUPABAS
 export const SUPABASE_ANON_KEY = getEnvVar('SUPABASE_ANON_KEY') || getEnvVar('VITE_SUPABASE_ANON_KEY');
 export const SUPABASE_SERVICE_KEY = getEnvVar('SUPABASE_SERVICE_KEY') || getEnvVar('VITE_SUPABASE_SERVICE_KEY');
 
-// VAPI configuration
-export const VAPI_PRIVATE_KEY = getEnvVar('VAPI_PRIVATE_KEY') || getEnvVar('VITE_VAPI_PRIVATE_KEY');
+// VAPI configuration is server-only; do not export it here to avoid bundling
+// the secret into client code. Server code should read process.env.VAPI_PRIVATE_KEY
+// directly (see src/server/server.ts).
 
 // Other configuration
 export const API_URL = getEnvVar('API_URL') || getEnvVar('VITE_API_URL');
@@ -36,7 +37,6 @@ const requiredVars = {
     SUPABASE_URL,
     SUPABASE_ANON_KEY,
     SUPABASE_SERVICE_KEY,
-    VAPI_PRIVATE_KEY,
     API_URL,
     JWT_SECRET
 };
