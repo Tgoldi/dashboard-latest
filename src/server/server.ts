@@ -20,6 +20,11 @@ if (missingVars.length > 0) {
     process.exit(1);
 }
 
+if (process.env.NODE_ENV !== 'development' && !process.env.FRONTEND_URL) {
+    console.error('Missing required environment variable: FRONTEND_URL must be set in production');
+    process.exit(1);
+}
+
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
@@ -45,7 +50,7 @@ const io = new Server(httpServer, {
     cors: {
         origin: process.env.NODE_ENV === 'development'
             ? 'http://localhost:8080'
-            : 'your_production_url',
+            : process.env.FRONTEND_URL,
         methods: ['GET', 'POST'],
         credentials: true
     }
@@ -60,7 +65,7 @@ const vapi = new VapiClient({
 app.use(cors({
     origin: process.env.NODE_ENV === 'development'
         ? ['http://localhost:8080']
-        : 'your_production_url',
+        : process.env.FRONTEND_URL,
     credentials: true,
     methods: ['GET', 'POST', 'OPTIONS']
 }));
@@ -722,8 +727,7 @@ app.get('/api/calls/:callId/recording', authenticateToken, checkAdminAccess, asy
     } catch (error) {
         console.error('Error fetching call recording:', error);
         res.status(500).json({
-            error: 'Failed to fetch call recording',
-            details: error instanceof Error ? error.message : 'Unknown error'
+            error: 'Something went wrong'
         });
     }
 });

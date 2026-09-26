@@ -1,7 +1,7 @@
 export const API_CONFIG = {
     VAPI: {
-        PRIVATE_KEY: 'eb6fdcc2-d70b-456f-a0fd-0101bbd09545',
-        PUBLIC_KEY: '6ed82e9d-e247-4a7e-9282-36a0d67f4cb3'
+        PRIVATE_KEY: process.env.VAPI_PRIVATE_KEY as string,
+        PUBLIC_KEY: process.env.VAPI_PUBLIC_KEY as string
     }
 } as const;
 
