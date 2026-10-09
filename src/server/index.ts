@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 // Load environment variables first
 dotenv.config();
 
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { VapiClient } from '@vapi-ai/server-sdk';
 import authRouter from './routes/auth.js';
@@ -58,7 +58,31 @@ interface CallResponse {
 const app = express();
 const port = process.env.PORT || 3001;
 
-app.use(cors());
+const securityHeaders = (_req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    if (process.env.NODE_ENV === 'production') {
+        res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    next();
+};
+app.use(securityHeaders);
+
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map(o => o.trim())
+    .filter(Boolean);
+
+app.use(cors({
+    origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, !!origin);
+        } else {
+            callback(null, false);
+        }
+    }
+}));
 app.use(express.json());
 
 // Initialize VAPI client with configuration

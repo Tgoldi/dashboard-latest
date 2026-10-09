@@ -57,7 +57,6 @@ class VapiService {
         };
 
         console.log('Making request to:', url);
-        console.log('Headers:', headers);
 
         const response = await fetch(url, { ...options, headers });
         if (!response.ok) {

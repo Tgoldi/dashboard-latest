@@ -66,6 +66,54 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Security headers (no external dependency)
+const securityHeaders = (_req: Request, res: Response, next: () => void) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    if (process.env.NODE_ENV === 'production') {
+        res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    next();
+};
+app.use(securityHeaders);
+
+// Simple in-memory rate limiter (per server instance; resets on restart)
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const RATE_LIMIT_MAX_REQUESTS = 300;
+const RATE_LIMIT_MAX_ENTRIES = 10000;
+const rateLimitStore = new Map<string, { count: number; windowStart: number }>();
+
+setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of rateLimitStore) {
+        if (now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+            rateLimitStore.delete(key);
+        }
+    }
+}, 60 * 1000).unref();
+
+const rateLimitApi = (req: Request, res: Response, next: () => void) => {
+    const key = req.ip || 'unknown';
+    const now = Date.now();
+    let entry = rateLimitStore.get(key);
+    if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+        if (!entry && rateLimitStore.size >= RATE_LIMIT_MAX_ENTRIES) {
+            const oldest = rateLimitStore.keys().next().value;
+            if (oldest !== undefined) rateLimitStore.delete(oldest);
+        }
+        entry = { count: 0, windowStart: now };
+        rateLimitStore.set(key, entry);
+    }
+    entry.count++;
+    if (entry.count > RATE_LIMIT_MAX_REQUESTS) {
+        res.status(429).json({ error: 'Too many requests' });
+        return;
+    }
+    next();
+};
+app.use('/api', rateLimitApi);
+
 // Routes
 app.use('/api/auth', authRouter);
 

@@ -1,7 +1,10 @@
 export const API_CONFIG = {
     VAPI: {
-        PRIVATE_KEY: 'eb6fdcc2-d70b-456f-a0fd-0101bbd09545',
-        PUBLIC_KEY: '6ed82e9d-e247-4a7e-9282-36a0d67f4cb3'
+        // Private key must only be set in a server-side environment variable
+        // (never exposed to the client bundle); proxy private calls via a backend.
+        PRIVATE_KEY: (process.env.VAPI_PRIVATE_KEY ?? '') as string,
+        // Public (restricted) key may be shipped to the client.
+        PUBLIC_KEY: (process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY ?? '') as string
     }
 } as const;
 

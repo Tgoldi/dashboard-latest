@@ -165,6 +165,19 @@ CREATE POLICY "Users can read their single assistant"
         )
     );
 
+-- Helper returning the caller's current stored privileged fields (bypasses RLS, pinned search_path)
+CREATE OR REPLACE FUNCTION public.current_user_privileged_fields()
+RETURNS TABLE (role public.user_role, assigned_assistants text[], email text)
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = ''
+AS $$
+    SELECT u.role, u.assigned_assistants, u.email
+    FROM public.users u
+    WHERE u.id = auth.uid();
+$$;
+
 -- Allow users to update their own basic info (excluding QA form)
 CREATE POLICY "Users can update their own basic info"
     ON users
@@ -172,6 +185,10 @@ CREATE POLICY "Users can update their own basic info"
     USING (auth.uid() = id)
     WITH CHECK (
         auth.uid() = id 
+        -- Nobody may change their own role, email or assigned assistants through this policy
+        AND role = (SELECT f.role FROM public.current_user_privileged_fields() f)
+        AND assigned_assistants IS NOT DISTINCT FROM (SELECT f.assigned_assistants FROM public.current_user_privileged_fields() f)
+        AND email = (SELECT f.email FROM public.current_user_privileged_fields() f)
         AND (
             CASE 
                 WHEN EXISTS (
@@ -201,15 +218,44 @@ CREATE POLICY "Users can update their own basic info"
         )
     );
 
+-- Guard privileged columns: only owners (or server-side callers with no auth.uid()) may change role, email or assigned_assistants
+CREATE OR REPLACE FUNCTION public.prevent_privileged_column_changes()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF auth.uid() IS NOT NULL
+     AND (
+       NEW.role IS DISTINCT FROM OLD.role
+       OR NEW.email IS DISTINCT FROM OLD.email
+       OR NEW.assigned_assistants IS DISTINCT FROM OLD.assigned_assistants
+     )
+     AND NOT EXISTS (
+       SELECT 1 FROM public.users u
+       WHERE u.id = auth.uid()
+       AND u.role = 'owner'::public.user_role
+     )
+  THEN
+    RAISE EXCEPTION 'Only owners may change role, email or assigned assistants';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
+
+DROP TRIGGER IF EXISTS guard_privileged_columns ON public.users;
+CREATE TRIGGER guard_privileged_columns
+  BEFORE UPDATE ON public.users
+  FOR EACH ROW EXECUTE FUNCTION public.prevent_privileged_column_changes();
+
 -- Create a function to handle new user creation in public schema
 CREATE OR REPLACE FUNCTION public.handle_new_user() 
 RETURNS TRIGGER AS $$
 BEGIN
+  -- Role is never taken from user-controlled metadata; always default to 'user'.
+  -- Elevated roles must be assigned by an owner-authorised server-side path.
   INSERT INTO public.users (id, email, role)
-  VALUES (NEW.id, NEW.email, NEW.raw_user_meta_data->>'role'::user_role);
+  VALUES (NEW.id, NEW.email, 'user'::public.user_role);
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
 
 -- Create trigger to handle new user signups
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;

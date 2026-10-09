@@ -34,8 +34,6 @@ export const authenticateToken = async (
             return;
         }
 
-        console.log('Token verified for user:', user.id);
-
         // Get user data from database
         const { data: userData, error: userError } = await supabaseAdmin
             .from('users')
@@ -49,7 +47,6 @@ export const authenticateToken = async (
             return;
         }
 
-        console.log('Found user data:', userData);
         req.user = { ...user, ...userData };
         next();
     } catch (error) {

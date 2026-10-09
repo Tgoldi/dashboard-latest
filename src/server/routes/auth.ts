@@ -72,8 +72,47 @@ interface UserResponse {
 
 const signUpHandler: express.RequestHandler<Record<string, never>, AuthResponse, SignUpBody> = async (req, res) => {
     try {
-        const { email, password, name, questions } = req.body;
-        console.log('Signup request received:', { email, name });
+        const { email, password, name, questions: rawQuestions } = req.body;
+        console.log('Signup request received');
+
+        if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+            res.status(400).json({ user: null, session: null, error: 'Invalid email address' });
+            return;
+        }
+        if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
+            res.status(400).json({ user: null, session: null, error: 'Password must be between 8 and 128 characters' });
+            return;
+        }
+        if (name !== undefined && (typeof name !== 'string' || name.length > 200)) {
+            res.status(400).json({ user: null, session: null, error: 'Invalid name' });
+            return;
+        }
+
+        // Keep only known string fields, with bounded length
+        const allowedQuestionKeys = [
+            'propertyName', 'location', 'breakfastService', 'lunchService', 'dinnerService',
+            'poolHours', 'spaServices', 'checkoutProcedures', 'ironingFacilities',
+            'iceMachineLocation', 'kidsClubServices', 'synagogueServices', 'gymFacilities',
+            'businessLounge', 'accessibilityFeatures', 'uniqueAmenities', 'contactPerson',
+            'contactEmail', 'contactPhone'
+        ];
+        let questions: Record<string, string> | undefined;
+        if (rawQuestions !== undefined && rawQuestions !== null) {
+            if (typeof rawQuestions !== 'object' || Array.isArray(rawQuestions)) {
+                res.status(400).json({ user: null, session: null, error: 'Invalid questions data' });
+                return;
+            }
+            questions = {};
+            for (const key of allowedQuestionKeys) {
+                const value = (rawQuestions as Record<string, unknown>)[key];
+                if (value === undefined) continue;
+                if (typeof value !== 'string' || value.length > 2000) {
+                    res.status(400).json({ user: null, session: null, error: 'Invalid questions data' });
+                    return;
+                }
+                questions[key] = value;
+            }
+        }
 
         // Create auth user with admin client
         const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -173,7 +212,7 @@ const signUpHandler: express.RequestHandler<Record<string, never>, AuthResponse,
             return;
         }
 
-        console.log('User operation successful:', userData);
+        console.log('User operation successful:', userData.id);
         res.json({ user: userData, session: null });
     } catch (error) {
         console.error('Signup error:', error);
@@ -191,7 +230,7 @@ const loginHandler: express.RequestHandler<Record<string, never>, AuthResponse, 
             return;
         }
 
-        console.log('Attempting login with:', { email });
+        console.log('Attempting login');
         const { data, error } = await supabase.auth.signInWithPassword({
             email,
             password
@@ -234,7 +273,7 @@ const loginHandler: express.RequestHandler<Record<string, never>, AuthResponse, 
             return;
         }
 
-        console.log('Login successful for user:', userData);
+        console.log('Login successful for user:', userData.id);
         res.json({ user: userData, session: data.session });
     } catch (error) {
         console.error('Unexpected error during login:', error);
@@ -293,7 +332,7 @@ const getCurrentUserHandler: express.RequestHandler<object, AuthResponse> = asyn
 router.post('/create-user', async (req, res) => {
     try {
         const { id, email, role, assistantAccess, language } = req.body;
-        console.log('Create user request received:', { id, email, role, assistantAccess, language });
+        console.log('Create user request received:', { id, role, assistantAccess, language });
 
         // Verify the user is authenticated
         const authHeader = req.headers['authorization'];
@@ -329,7 +368,7 @@ router.post('/create-user', async (req, res) => {
             .single();
 
         if (existingUser) {
-            console.log('User already exists:', existingUser);
+            console.log('User already exists:', existingUser.id);
             // User already exists, return the existing user
             res.json({ data: existingUser });
             return;
@@ -376,7 +415,7 @@ router.post('/create-user', async (req, res) => {
             return;
         }
 
-        console.log('User created successfully:', userData);
+        console.log('User created successfully:', userData?.id);
         res.json({ data: userData });
     } catch (error) {
         console.error('Unexpected error creating user:', error);
@@ -442,7 +481,7 @@ router.get('/user', authenticateToken, async (req: AuthenticatedRequest, res: Re
             }
         }
 
-        console.log('Returning user data:', userDataWithAssistant);
+        console.log('Returning user data for:', userDataWithAssistant?.id);
         res.json({ data: userDataWithAssistant });
     } catch (error) {
         console.error('Error in get user endpoint:', error);
@@ -469,7 +508,7 @@ const userHandler: express.RequestHandler<Record<string, never>, UserResponse, U
             return;
         }
 
-        console.log('Found auth user:', user);
+        console.log('Found auth user:', user.id);
 
         // Check if user exists in our users table
         const { data: existingUser, error: fetchError } = await supabaseAdmin
@@ -508,12 +547,12 @@ const userHandler: express.RequestHandler<Record<string, never>, UserResponse, U
                 return;
             }
 
-            console.log('Created new user record:', newUser);
+            console.log('Created new user record:', newUser?.id);
             res.json({ data: newUser });
             return;
         }
 
-        console.log('Found user in database:', existingUser);
+        console.log('Found user in database:', existingUser.id);
         res.json({ data: existingUser });
     } catch (error) {
         console.error('Server error:', error);
@@ -527,6 +566,12 @@ router.post('/user', userHandler);
 router.post('/admin/users', authenticateToken, checkAdminAccess, async (req, res) => {
     try {
         const { email, password, role, assistantAccess, language } = req.body;
+
+        const allowedRoles: UserRole[] = ['owner', 'admin', 'editor', 'user'];
+        if (role !== undefined && !allowedRoles.includes(role)) {
+            res.status(400).json({ error: 'Invalid role' });
+            return;
+        }
 
         // Create auth user first
         const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -577,6 +622,12 @@ router.put('/admin/users/:userId', authenticateToken, checkAdminAccess, async (r
     try {
         const { userId } = req.params;
         const { role, assistantAccess, language, assigned_assistants, default_assistant_id } = req.body;
+
+        const allowedRoles: UserRole[] = ['owner', 'admin', 'editor', 'user'];
+        if (role !== undefined && !allowedRoles.includes(role)) {
+            res.status(400).json({ error: 'Invalid role' });
+            return;
+        }
 
         // Update user metadata in auth
         const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, {

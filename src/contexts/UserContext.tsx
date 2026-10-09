@@ -65,7 +65,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     try {
       const { data: userData, error } = await supabase
         .from('users')
-        .select('*')
+        .select('id, email, name, role, assistant_access, assigned_assistants, default_assistant_id, language, qa_form_submitted')
         .eq('id', session.user.id)
         .single();
 
@@ -82,8 +82,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const login = async (data: UserLoginData) => {
     try {
       setLoading(true);
-      console.log('Attempting login with:', { email: data.email });
-      
+      console.log('Attempting login');
+
       const { data: authData, error } = await supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password
