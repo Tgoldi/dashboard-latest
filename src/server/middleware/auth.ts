@@ -49,7 +49,7 @@ export const authenticateToken = async (
             return;
         }
 
-        console.log('Found user data:', userData);
+        console.log('Found user data for user:', user.id);
         req.user = { ...user, ...userData };
         next();
     } catch (error) {

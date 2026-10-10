@@ -10,6 +10,52 @@ import { UserRole } from '../../types/user';
 
 const router = Router();
 
+// Simple in-memory rate limiter for auth routes (per server instance; resets on restart)
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const RATE_LIMIT_MAX = 10;
+const RATE_LIMIT_MAX_ENTRIES = 10000;
+const authAttempts = new Map<string, { count: number; windowStart: number }>();
+
+setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of authAttempts) {
+        if (now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+            authAttempts.delete(key);
+        }
+    }
+}, 60 * 1000).unref();
+
+const createAuthRateLimiter = (routeName: string): express.RequestHandler => (req, res, next) => {
+    const rawEmail = req.body && typeof req.body.email === 'string' ? req.body.email : '';
+    const key = `${routeName}:${req.ip}:${rawEmail.toLowerCase().slice(0, 254)}`;
+    const now = Date.now();
+    const entry = authAttempts.get(key);
+
+    if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+        if (!entry && authAttempts.size >= RATE_LIMIT_MAX_ENTRIES) {
+            const oldestKey = authAttempts.keys().next().value;
+            if (oldestKey !== undefined) {
+                authAttempts.delete(oldestKey);
+            }
+        }
+        authAttempts.set(key, { count: 1, windowStart: now });
+        next();
+        return;
+    }
+
+    entry.count += 1;
+    if (entry.count > RATE_LIMIT_MAX) {
+        const retryAfterSeconds = Math.ceil((entry.windowStart + RATE_LIMIT_WINDOW_MS - now) / 1000);
+        res.setHeader('Retry-After', String(retryAfterSeconds));
+        res.status(429).json({ user: null, session: null, error: 'Too many requests, please try again later' });
+        return;
+    }
+    next();
+};
+
+const rateLimitLogin = createAuthRateLimiter('login');
+const rateLimitSignup = createAuthRateLimiter('signup');
+
 // Initialize VAPI client
 const vapi = new VapiClient({
     token: VAPI_PRIVATE_KEY
@@ -73,7 +119,7 @@ interface UserResponse {
 const signUpHandler: express.RequestHandler<Record<string, never>, AuthResponse, SignUpBody> = async (req, res) => {
     try {
         const { email, password, name, questions } = req.body;
-        console.log('Signup request received:', { email, name });
+        console.log('Signup request received');
 
         // Create auth user with admin client
         const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -173,7 +219,7 @@ const signUpHandler: express.RequestHandler<Record<string, never>, AuthResponse,
             return;
         }
 
-        console.log('User operation successful:', userData);
+        console.log('User operation successful:', userData?.id);
         res.json({ user: userData, session: null });
     } catch (error) {
         console.error('Signup error:', error);
@@ -191,7 +237,7 @@ const loginHandler: express.RequestHandler<Record<string, never>, AuthResponse, 
             return;
         }
 
-        console.log('Attempting login with:', { email });
+        console.log('Attempting login');
         const { data, error } = await supabase.auth.signInWithPassword({
             email,
             password
@@ -234,7 +280,7 @@ const loginHandler: express.RequestHandler<Record<string, never>, AuthResponse, 
             return;
         }
 
-        console.log('Login successful for user:', userData);
+        console.log('Login successful for user:', userData?.id);
         res.json({ user: userData, session: data.session });
     } catch (error) {
         console.error('Unexpected error during login:', error);
@@ -293,7 +339,7 @@ const getCurrentUserHandler: express.RequestHandler<object, AuthResponse> = asyn
 router.post('/create-user', async (req, res) => {
     try {
         const { id, email, role, assistantAccess, language } = req.body;
-        console.log('Create user request received:', { id, email, role, assistantAccess, language });
+        console.log('Create user request received:', { id, role, assistantAccess, language });
 
         // Verify the user is authenticated
         const authHeader = req.headers['authorization'];
@@ -329,7 +375,7 @@ router.post('/create-user', async (req, res) => {
             .single();
 
         if (existingUser) {
-            console.log('User already exists:', existingUser);
+            console.log('User already exists:', existingUser.id);
             // User already exists, return the existing user
             res.json({ data: existingUser });
             return;
@@ -366,7 +412,7 @@ router.post('/create-user', async (req, res) => {
                     return;
                 }
 
-                console.log('Retrieved user after concurrent creation:', retryUser);
+                console.log('Retrieved user after concurrent creation:', retryUser?.id);
                 res.json({ data: retryUser });
                 return;
             }
@@ -376,7 +422,7 @@ router.post('/create-user', async (req, res) => {
             return;
         }
 
-        console.log('User created successfully:', userData);
+        console.log('User created successfully:', userData?.id);
         res.json({ data: userData });
     } catch (error) {
         console.error('Unexpected error creating user:', error);
@@ -442,7 +488,7 @@ router.get('/user', authenticateToken, async (req: AuthenticatedRequest, res: Re
             }
         }
 
-        console.log('Returning user data:', userDataWithAssistant);
+        console.log('Returning user data for user:', userDataWithAssistant?.id);
         res.json({ data: userDataWithAssistant });
     } catch (error) {
         console.error('Error in get user endpoint:', error);
@@ -451,7 +497,7 @@ router.get('/user', authenticateToken, async (req: AuthenticatedRequest, res: Re
 });
 
 // Routes
-router.post('/login', loginHandler);
+router.post('/login', rateLimitLogin, loginHandler);
 router.post('/logout', logoutHandler);
 router.get('/me', getCurrentUserHandler);
 
@@ -469,7 +515,7 @@ const userHandler: express.RequestHandler<Record<string, never>, UserResponse, U
             return;
         }
 
-        console.log('Found auth user:', user);
+        console.log('Found auth user:', user.id);
 
         // Check if user exists in our users table
         const { data: existingUser, error: fetchError } = await supabaseAdmin
@@ -508,12 +554,12 @@ const userHandler: express.RequestHandler<Record<string, never>, UserResponse, U
                 return;
             }
 
-            console.log('Created new user record:', newUser);
+            console.log('Created new user record:', newUser?.id);
             res.json({ data: newUser });
             return;
         }
 
-        console.log('Found user in database:', existingUser);
+        console.log('Found user in database:', existingUser.id);
         res.json({ data: existingUser });
     } catch (error) {
         console.error('Server error:', error);
@@ -685,6 +731,6 @@ router.get('/admin/users', authenticateToken, checkAdminAccess, async (req, res)
     }
 });
 
-router.post('/signup', signUpHandler);
+router.post('/signup', rateLimitSignup, signUpHandler);
 
 export default router; 

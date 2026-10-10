@@ -2,7 +2,18 @@ import { supabase } from '../../lib/supabase-server';
 
 export default async function handler(req, res) {
     const { id } = req.query;
-    
+
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { data: authData, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !authData?.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    if (typeof id !== 'string' || id !== authData.user.id) {
+        return res.status(403).json({ error: 'Forbidden' });
+    }
+
     if (req.method === 'GET') {
         const { data, error } = await supabase
             .from('users')
