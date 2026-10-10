@@ -2,15 +2,11 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../types/supabase';
 import { SUPABASE_URL, SUPABASE_SERVICE_KEY, NODE_ENV } from './env';
 
-// Helper function to get environment variables that works in both browser and Node.js
-const getEnvVar = (key: string): string => {
-    // Check if we're in a browser environment
-    if (typeof window !== 'undefined') {
-        return import.meta.env[key] || '';
-    }
-    // Node.js environment
-    return process.env[key] || '';
-};
+// This module holds the service-role key and bypasses RLS. It must only ever be
+// loaded in server-side code; refuse to load in a browser.
+if (typeof window !== 'undefined') {
+    throw new Error('supabase-admin must not be imported in browser code. Use an authenticated server endpoint instead.');
+}
 
 if (!SUPABASE_URL) throw new Error('Missing SUPABASE_URL');
 if (!SUPABASE_SERVICE_KEY) throw new Error('Missing SUPABASE_SERVICE_KEY');
@@ -23,13 +19,8 @@ export const supabaseAdmin = createClient<Database>(SUPABASE_URL, SUPABASE_SERVI
     }
 });
 
-// Add error logging for development
+// Development connectivity check (no user data is read; head-only count of a
+// non-sensitive nature is avoided to keep service-role queries out of this module)
 if (NODE_ENV === 'development') {
-    supabaseAdmin.from('users').select('count').then(({ count, error }) => {
-        if (error) {
-            console.error('Supabase Admin Client Error:', error);
-        } else {
-            console.log('Supabase Admin Client Connected, Total Users:', count);
-        }
-    });
-} 
+    console.log('Supabase Admin Client initialized (server-side only)');
+}

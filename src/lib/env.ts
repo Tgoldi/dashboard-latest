@@ -19,10 +19,10 @@ const getEnvVar = (key: string): string => {
 // Supabase configuration
 export const SUPABASE_URL = getEnvVar('SUPABASE_URL') || getEnvVar('VITE_SUPABASE_URL');
 export const SUPABASE_ANON_KEY = getEnvVar('SUPABASE_ANON_KEY') || getEnvVar('VITE_SUPABASE_ANON_KEY');
-export const SUPABASE_SERVICE_KEY = getEnvVar('SUPABASE_SERVICE_KEY') || getEnvVar('VITE_SUPABASE_SERVICE_KEY');
+export const SUPABASE_SERVICE_KEY = getEnvVar('SUPABASE_SERVICE_KEY');
 
 // VAPI configuration
-export const VAPI_PRIVATE_KEY = getEnvVar('VAPI_PRIVATE_KEY') || getEnvVar('VITE_VAPI_PRIVATE_KEY');
+export const VAPI_PRIVATE_KEY = getEnvVar('VAPI_PRIVATE_KEY');
 
 // Other configuration
 export const API_URL = getEnvVar('API_URL') || getEnvVar('VITE_API_URL');

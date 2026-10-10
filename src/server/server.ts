@@ -66,11 +66,58 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Security headers
+const securityHeaders = (req: Request, res: Response, next: () => void) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    if (process.env.NODE_ENV === 'production') {
+        res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    next();
+};
+app.use(securityHeaders);
+
+// In-memory rate limiter (resets on restart; counts per server instance)
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const RATE_LIMIT_MAX = 300;
+const RATE_LIMIT_MAX_KEYS = 10000;
+const rateLimitHits = new Map<string, { count: number; windowStart: number }>();
+setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of rateLimitHits) {
+        if (now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+            rateLimitHits.delete(key);
+        }
+    }
+}, 60 * 1000).unref();
+
+const rateLimitApi = (req: AuthenticatedRequest, res: Response, next: () => void) => {
+    const key = `${req.user?.id ?? ''}:${req.ip}`;
+    const now = Date.now();
+    const entry = rateLimitHits.get(key);
+    if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+        if (!entry && rateLimitHits.size >= RATE_LIMIT_MAX_KEYS) {
+            const oldest = rateLimitHits.keys().next().value;
+            if (oldest !== undefined) rateLimitHits.delete(oldest);
+        }
+        rateLimitHits.set(key, { count: 1, windowStart: now });
+        return next();
+    }
+    entry.count++;
+    if (entry.count > RATE_LIMIT_MAX) {
+        res.status(429).json({ error: 'Too many requests' });
+        return;
+    }
+    next();
+};
+
 // Routes
 app.use('/api/auth', authRouter);
 
 // Protected routes
 app.use('/api', authenticateToken);
+app.use('/api', rateLimitApi);
 
 // WebSocket connection handling
 io.use(async (socket, next) => {

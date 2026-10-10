@@ -134,12 +134,16 @@ CREATE POLICY "Editors can access their single assistant"
         )
     )
     WITH CHECK (
-        CASE 
-            -- Only allow QA form update if it hasn't been submitted yet
-            WHEN questions IS DISTINCT FROM (SELECT questions FROM users WHERE id = auth.uid()) THEN 
-                NOT (SELECT qa_form_submitted FROM users WHERE id = auth.uid()) AND auth.uid() = id
-            ELSE TRUE
-        END
+        id = auth.uid()
+        AND role = (SELECT u2.role FROM users u2 WHERE u2.id = auth.uid())
+        AND (
+            CASE 
+                -- Only allow QA form update if it hasn't been submitted yet
+                WHEN questions IS DISTINCT FROM (SELECT questions FROM users WHERE id = auth.uid()) THEN 
+                    NOT (SELECT qa_form_submitted FROM users WHERE id = auth.uid()) AND auth.uid() = id
+                ELSE TRUE
+            END
+        )
     );
 
 -- User policies (read-only access to single assistant)
@@ -172,6 +176,7 @@ CREATE POLICY "Users can update their own basic info"
     USING (auth.uid() = id)
     WITH CHECK (
         auth.uid() = id 
+        AND role = (SELECT u2.role FROM users u2 WHERE u2.id = auth.uid())
         AND (
             CASE 
                 WHEN EXISTS (
@@ -201,15 +206,45 @@ CREATE POLICY "Users can update their own basic info"
         )
     );
 
+-- Prevent privilege escalation: nobody may change their own role, and only
+-- owners may change anyone's role. Applies regardless of which (OR'd) RLS
+-- policy allowed the update.
+CREATE OR REPLACE FUNCTION public.prevent_role_escalation()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.role IS DISTINCT FROM OLD.role THEN
+    -- Allow server-side/service operations with no end-user JWT (auth.uid() is null)
+    IF auth.uid() IS NOT NULL THEN
+      IF auth.uid() = OLD.id THEN
+        RAISE EXCEPTION 'You cannot change your own role';
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM public.users u
+        WHERE u.id = auth.uid()
+        AND u.role = 'owner'::public.user_role
+      ) THEN
+        RAISE EXCEPTION 'Only owners can change roles';
+      END IF;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
+
+DROP TRIGGER IF EXISTS prevent_role_escalation_trigger ON users;
+CREATE TRIGGER prevent_role_escalation_trigger
+  BEFORE UPDATE ON users
+  FOR EACH ROW EXECUTE FUNCTION public.prevent_role_escalation();
+
 -- Create a function to handle new user creation in public schema
 CREATE OR REPLACE FUNCTION public.handle_new_user() 
 RETURNS TRIGGER AS $$
 BEGIN
   INSERT INTO public.users (id, email, role)
-  VALUES (NEW.id, NEW.email, NEW.raw_user_meta_data->>'role'::user_role);
+  VALUES (NEW.id, NEW.email, 'user'::public.user_role);
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
 
 -- Create trigger to handle new user signups
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;

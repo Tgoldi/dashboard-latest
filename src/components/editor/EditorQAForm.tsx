@@ -7,7 +7,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { useTheme } from '@/contexts/useTheme';
 import { useUser } from '@/contexts/UserContext';
 import { HotelQuestions } from '@/types/user';
-import { supabaseAdmin } from '@/lib/supabase-admin';
+import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Languages } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -72,7 +72,7 @@ export function EditorQAForm() {
             if (!user?.id) return;
 
             try {
-                const { data, error } = await supabaseAdmin
+                const { data, error } = await supabase
                     .from('users')
                     .select('questions, qa_form_submitted')
                     .eq('id', user.id)
@@ -144,7 +144,7 @@ export function EditorQAForm() {
                 )
             };
 
-            const { error } = await supabaseAdmin
+            const { error } = await supabase
                 .from('users')
                 .update({
                     questions: combinedData,
@@ -189,7 +189,7 @@ export function EditorQAForm() {
     // Update user's language preference
     const updateUserLanguage = async (newLanguage: 'en' | 'he') => {
         try {
-            const { error } = await supabaseAdmin
+            const { error } = await supabase
                 .from('users')
                 .update({ language: newLanguage })
                 .eq('id', user?.id);
