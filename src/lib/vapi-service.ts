@@ -25,14 +25,13 @@ interface VapiAssistant {
     updatedAt?: string;
 }
 
-// Helper function to get environment variables that works in both browser and Node.js
+// Server-only environment variable lookup. Never reads VITE_-prefixed variables,
+// so secrets are never inlined into the browser bundle.
 const getEnvVar = (key: string): string => {
-    // Check if we're in a browser environment
-    if (typeof window !== 'undefined') {
-        return (import.meta.env[key] || '') as string;
+    if (typeof process !== 'undefined' && process.env) {
+        return process.env[key] || '';
     }
-    // Node.js environment
-    return process.env[key] || '';
+    return '';
 };
 
 class VapiService {
@@ -41,14 +40,13 @@ class VapiService {
 
     constructor() {
         this.baseUrl = 'https://api.vapi.ai/api';
-        this.apiKey = getEnvVar('VITE_VAPI_API_KEY') || getEnvVar('VAPI_PRIVATE_KEY') || '';
-
-        if (!this.apiKey) {
-            throw new Error('VAPI API key is required. Please set VITE_VAPI_API_KEY or VAPI_PRIVATE_KEY in your environment variables.');
-        }
+        this.apiKey = getEnvVar('VAPI_PRIVATE_KEY');
     }
 
     private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+        if (!this.apiKey) {
+            throw new Error('VAPI API key is required. Set VAPI_PRIVATE_KEY in your server environment variables; VAPI calls must be made from the server, not the browser.');
+        }
         const url = `${this.baseUrl}${endpoint}`;
         const headers = {
             'Content-Type': 'application/json',
@@ -57,7 +55,6 @@ class VapiService {
         };
 
         console.log('Making request to:', url);
-        console.log('Headers:', headers);
 
         const response = await fetch(url, { ...options, headers });
         if (!response.ok) {

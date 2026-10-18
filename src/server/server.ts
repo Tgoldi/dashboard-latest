@@ -56,6 +56,18 @@ const vapi = new VapiClient({
     token: process.env.VAPI_PRIVATE_KEY || ''
 });
 
+// Security headers
+const securityHeaders = (req: Request, res: Response, next: () => void) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    if (process.env.NODE_ENV === 'production') {
+        res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    next();
+};
+app.use(securityHeaders);
+
 // Middleware
 app.use(cors({
     origin: process.env.NODE_ENV === 'development'
@@ -728,6 +740,45 @@ app.get('/api/calls/:callId/recording', authenticateToken, checkAdminAccess, asy
     }
 });
 
+// Simple in-memory rate limiter for admin write routes (resets on restart; per server instance)
+const ADMIN_WRITE_WINDOW_MS = 15 * 60 * 1000;
+const ADMIN_WRITE_MAX = 60;
+const ADMIN_WRITE_MAX_KEYS = 10000;
+const adminWriteHits = new Map<string, { count: number; windowStart: number }>();
+
+setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of adminWriteHits) {
+        if (now - entry.windowStart >= ADMIN_WRITE_WINDOW_MS) {
+            adminWriteHits.delete(key);
+        }
+    }
+}, 60 * 1000).unref();
+
+const rateLimitAdminWrite = (req: Request, res: Response, next: () => void) => {
+    const userId = (req as AuthenticatedRequest).user?.id;
+    const key = `${userId ?? req.ip}`;
+    const now = Date.now();
+    const entry = adminWriteHits.get(key);
+
+    if (!entry || now - entry.windowStart >= ADMIN_WRITE_WINDOW_MS) {
+        if (!entry && adminWriteHits.size >= ADMIN_WRITE_MAX_KEYS) {
+            res.status(429).json({ error: 'Too many requests' });
+            return;
+        }
+        adminWriteHits.set(key, { count: 1, windowStart: now });
+        next();
+        return;
+    }
+
+    entry.count++;
+    if (entry.count > ADMIN_WRITE_MAX) {
+        res.status(429).json({ error: 'Too many requests' });
+        return;
+    }
+    next();
+};
+
 // Admin user management routes
 app.get('/api/admin/users', authenticateToken, checkAdminAccess, async (req, res) => {
     try {
@@ -787,7 +838,7 @@ app.get('/api/admin/users', authenticateToken, checkAdminAccess, async (req, res
     }
 });
 
-app.post('/api/admin/users', authenticateToken, checkAdminAccess, async (req, res) => {
+app.post('/api/admin/users', authenticateToken, checkAdminAccess, rateLimitAdminWrite, async (req, res) => {
     try {
         const { email, password, role, assistantAccess, assignedVapiIds } = req.body;
 
@@ -846,7 +897,7 @@ app.post('/api/admin/users', authenticateToken, checkAdminAccess, async (req, re
     }
 });
 
-app.put('/api/admin/users/:userId', authenticateToken, checkAdminAccess, async (req: Request<{ userId: string }>, res: Response) => {
+app.put('/api/admin/users/:userId', authenticateToken, checkAdminAccess, rateLimitAdminWrite, async (req: Request<{ userId: string }>, res: Response) => {
     try {
         const { userId } = req.params;
         console.log('Updating user with ID:', userId);
@@ -937,7 +988,7 @@ app.put('/api/admin/users/:userId', authenticateToken, checkAdminAccess, async (
     }
 });
 
-app.delete('/api/admin/users/:userId', authenticateToken, checkAdminAccess, async (req, res) => {
+app.delete('/api/admin/users/:userId', authenticateToken, checkAdminAccess, rateLimitAdminWrite, async (req, res) => {
     try {
         const { userId } = req.params;
 
