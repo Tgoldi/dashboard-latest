@@ -29,7 +29,7 @@ export const authenticateToken = async (
         const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
 
         if (authError || !user) {
-            console.error('Token verification failed:', authError);
+            console.error('Token verification failed:', authError?.message);
             res.status(401).json({ error: 'Invalid token' });
             return;
         }
@@ -44,12 +44,11 @@ export const authenticateToken = async (
             .single();
 
         if (userError) {
-            console.error('Error fetching user data:', userError);
+            console.error('Error fetching user data:', userError.message);
             res.status(401).json({ error: 'User not found' });
             return;
         }
 
-        console.log('Found user data:', userData);
         req.user = { ...user, ...userData };
         next();
     } catch (error) {
